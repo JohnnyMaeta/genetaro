@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>和文ワープロ Web - 縦書き・原稿用紙・教材プリント対応</title>
+<meta name="description" content="Webブラウザだけで動く、縦書き・原稿用紙・文書スタイル・教材プリント作成対応の日本語ワープロ">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPMincho&family=BIZ+UDPGothic&family=Noto+Serif+JP:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ===== 配色・寸法トークン ===== */
+:root{
+  --ui-bg:#e9eef5; --ui-bar:#f6f8fb; --ui-line:#b9c4d3; --ui-text:#1e2a3a;
+  --ui-accent:#1d5fb4; --ui-accent-soft:#d7e5f7; --ui-hover:#e4ecf7;
+  --desk:#7d8797; --paper:#ffffff; --paper-shadow:rgba(0,0,0,.35);
+  --grid:#d9a3a3; --gridline:#eccfcf; --pagebreak:#8aa2c2;
+  --fkey-bg:#2d3e57; --fkey-text:#f2f6fb; --fkey-num:#ffd27a;
+  --font-ui:"BIZ UDPGothic","Hiragino Sans","Yu Gothic UI","Noto Sans JP",system-ui,sans-serif;
+  --font-mincho:"BIZ UDPMincho","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP","Noto Serif CJK JP","IPAPMincho","IPAMincho","IPAPGothic","IPAGothic",serif;
+  --font-gothic:"BIZ UDPGothic","Hiragino Sans","Yu Gothic","Noto Sans JP","Noto Sans CJK JP","IPAPGothic","IPAGothic",sans-serif;
+  /* 文書スタイルから JS が書き換える値 */
+  --cell:16px; --pitch:16px; --lp:28px; --cols:40; --rows:36;
+  --paper-w:794px; --paper-h:1123px; --m-top:94px; --m-bottom:94px; --m-left:94px; --m-right:94px;
+  --zoom:1; --goff:calc((var(--lp) - var(--cell)) / 2);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ui-bg:#1c2430; --ui-bar:#242e3c; --ui-line:#3a4a5f; --ui-text:#e6edf5;
+    --ui-accent:#6ea8ff; --ui-accent-soft:#2a3f5e; --ui-hover:#2e3b4e; --desk:#3a4250;
+  }
+}
+:root[data-theme="dark"]{
+  --ui-bg:#1c2430; --ui-bar:#242e3c; --ui-line:#3a4a5f; --ui-text:#e6edf5;
+  --ui-accent:#6ea8ff; --ui-accent-soft:#2a3f5e; --ui-hover:#2e3b4e; --desk:#3a4250;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--font-ui);font-size:13px;color:var(--ui-text);background:var(--ui-bg);display:flex;flex-direction:column;overflow:hidden}
+button,select,input{font:inherit;color:inherit}
+button{background:transparent;border:1px solid transparent;border-radius:3px;padding:2px 6px;cursor:pointer}
+button:hover{background:var(--ui-hover);border-color:var(--ui-line)}
+button.on{background:var(--ui-accent-soft);border-color:var(--ui-accent)}
+button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--ui-accent);outline-offset:1px}
+
+/* ===== タイトル行 ===== */
+#titlebar{display:flex;align-items:center;gap:8px;padding:3px 10px;background:linear-gradient(#3f6fb5,#2b569a);color:#fff;font-weight:700;letter-spacing:.04em}
+#titlebar .logo{display:inline-grid;place-items:center;width:20px;height:20px;background:#fff;color:#2b569a;border-radius:3px;font-family:var(--font-mincho);font-size:14px}
+#titlebar input{background:transparent;border:0;color:#fff;font-weight:700;min-width:8em;width:24em}
+#titlebar input:focus{outline:1px solid #fff;border-radius:2px}
+#titlebar .spacer{flex:1}
+#titlebar .saved{font-weight:400;opacity:.85;font-size:12px}
+
+/* ===== メニューバー ===== */
+#menubar{display:flex;background:var(--ui-bar);border-bottom:1px solid var(--ui-line);padding:0 4px;user-select:none;white-space:nowrap;overflow-x:auto}
+#menubar > .menu{position:relative}
+#menubar > .menu > button{padding:3px 10px;border-radius:0}
+#menubar > .menu > button[aria-expanded="true"]{background:var(--ui-accent-soft)}
+.dropdown{position:absolute;top:100%;left:0;min-width:230px;background:var(--ui-bar);border:1px solid var(--ui-line);box-shadow:0 6px 18px rgba(0,0,0,.25);padding:4px 0;z-index:50;display:none}
+.menu[aria-expanded="true"] .dropdown, .dropdown.open{display:block}
+.dropdown button{display:flex;width:100%;justify-content:space-between;gap:24px;text-align:left;border-radius:0;padding:4px 14px}
+.dropdown button kbd{font-family:inherit;opacity:.65;font-size:11px}
+.dropdown hr{border:0;border-top:1px solid var(--ui-line);margin:4px 0}
+
+/* ===== ツールバー ===== */
+#toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:3px 6px;background:var(--ui-bar);border-bottom:1px solid var(--ui-line)}
+#toolbar .sep{width:1px;height:20px;background:var(--ui-line);margin:0 4px}
+#toolbar select{border:1px solid var(--ui-line);border-radius:3px;background:var(--ui-bg);padding:1px 4px;max-width:9em}
+#toolbar button{min-width:26px}
+#toolbar button b{font-family:var(--font-mincho)}
+
+/* ===== 本体レイアウト ===== */
+#main{flex:1;display:flex;min-height:0}
+#desk{flex:1;overflow:auto;background:var(--desk);padding:24px;display:flex;justify-content:center;align-items:flex-start}
+#paperwrap{zoom:var(--zoom)}
+#paper{position:relative;background:var(--paper);color:#111;box-shadow:0 4px 18px var(--paper-shadow);
+  width:var(--paper-w);min-height:var(--paper-h);
+  padding:var(--m-top) var(--m-right) var(--m-bottom) var(--m-left);
+  font-family:var(--font-mincho);font-size:var(--cell);line-height:var(--lp)}
+#paper.gothic{font-family:var(--font-gothic)}
+#paper.vertical{width:max-content;min-width:var(--paper-w);min-height:var(--paper-h);height:var(--paper-h)}
+#paper.vertical #editor{writing-mode:vertical-rl;height:calc(var(--cols) * var(--pitch));min-height:0;width:max-content;min-width:calc(var(--rows) * var(--lp))}
+
+/* 編集面 */
+#editor{outline:none;min-height:calc(var(--rows) * var(--lp));width:calc(var(--cols) * var(--pitch));
+  letter-spacing:calc(var(--pitch) - var(--cell));line-height:var(--lp);word-break:break-all;overflow-wrap:anywhere;caret-color:#c00;
+  /* 改ページ位置の目安線（イメージ編集時） */
+  background-image:repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--rows) * var(--lp) - 1px), var(--pagebreak) calc(var(--rows) * var(--lp) - 1px), var(--pagebreak) calc(var(--rows) * var(--lp)));
+}
+#paper.vertical #editor{background-image:repeating-linear-gradient(to left, transparent 0, transparent calc(var(--rows) * var(--lp) - 1px), var(--pagebreak) calc(var(--rows) * var(--lp) - 1px), var(--pagebreak) calc(var(--rows) * var(--lp)))}
+#paper.draft #editor{background-image:none}
+#editor p,#editor div,#editor h1,#editor h2,#editor h3,#editor blockquote{margin:0}
+#editor h1{font-size:1.6em;line-height:calc(var(--lp) * 2);font-weight:700}
+#editor h2{font-size:1.3em;line-height:calc(var(--lp) * 1.5);font-weight:700}
+#editor h3{font-size:1.1em;font-weight:700}
+#editor blockquote{padding-inline-start:1em;border-inline-start:3px solid #bbb;color:#444}
+#editor ruby rt{font-size:.5em;letter-spacing:0}
+#editor .boten{text-emphasis:filled sesame;-webkit-text-emphasis:filled sesame}
+#editor .tcy{text-combine-upright:all;-webkit-text-combine:horizontal}
+#editor .kakomi{border:1px solid currentColor;border-radius:2px;padding:0 .1em;margin:0 .05em}
+#editor .marker{background:#fff59a}
+#editor hr.pagebreak{border:0;border-top:2px dashed var(--pagebreak);margin:0;break-before:page;page-break-before:always;height:0}
+#paper.vertical #editor hr.pagebreak{border-top:0;border-right:2px dashed var(--pagebreak);width:0;height:auto}
+#editor table{border-collapse:collapse;margin:0;letter-spacing:0}
+#editor td,#editor th{border:1px solid #333;padding:.15em .4em;min-width:2em;vertical-align:top}
+#editor th{background:#f0f0f0}
+#editor a{color:#1a4aa8}
+#editor .find-hit{background:#ffd27a;outline:2px solid #e39b00}
+
+/* ===== 教材・テスト作成パーツ ===== */
+#editor .name-box{display:inline-flex;align-items:center;border:1px solid #222;border-radius:3px;padding:2px 8px;margin:4px 0;background:#fafafa}
+#editor .score-box{display:inline-flex;align-items:center;border:2px solid #222;padding:2px 10px;font-weight:700;margin:4px 0;background:#fff}
+#editor .ans-box{display:inline-block;border:1.5px solid #333;border-radius:2px;min-width:6em;min-height:1.8em;padding:2px 6px;vertical-align:middle;margin:2px 4px;background:#fff}
+#editor .ans-box-lg{display:block;border:1.5px solid #333;border-radius:3px;width:100%;min-height:4.5em;padding:4px 8px;margin:6px 0;background:#fff}
+#editor .memo-box{display:block;border:1.5px dashed #555;border-radius:4px;padding:8px 12px;margin:8px 0;background:#f9fbfd}
+#editor .masu-grid{display:inline-flex;border:1px solid #333;margin:2px 4px;vertical-align:middle}
+#editor .masu-grid span{display:inline-block;width:1.4em;height:1.4em;border-right:1px solid #aaa;text-align:center;line-height:1.4em}
+#editor .masu-grid span:last-child{border-right:0}
+#paper.vertical #editor .name-box{display:inline-block;padding:8px 4px}
+#paper.vertical #editor .ans-box-lg{width:auto;min-width:4.5em;height:100%;min-height:8em}
+
+/* 原稿用紙 */
+#paper.genkou #editor{letter-spacing:0;
+  background-image:
+    repeating-linear-gradient(to right, var(--gridline) 0, var(--gridline) 1px, transparent 1px, transparent var(--cell)),
+    repeating-linear-gradient(to bottom, transparent 0, transparent var(--goff), var(--grid) var(--goff), var(--grid) calc(var(--goff) + 1px), transparent calc(var(--goff) + 1px), transparent calc(var(--goff) + var(--cell) - 1px), var(--grid) calc(var(--goff) + var(--cell) - 1px), var(--grid) calc(var(--goff) + var(--cell)), transparent calc(var(--goff) + var(--cell)), transparent var(--lp)),
+    repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--rows) * var(--lp) - 2px), var(--pagebreak) calc(var(--rows) * var(--lp) - 2px), var(--pagebreak) calc(var(--rows) * var(--lp)));
+  background-size:calc(var(--cols) * var(--cell) + 1px) var(--lp), calc(var(--cols) * var(--cell) + 1px) var(--lp), 100% calc(var(--rows) * var(--lp));
+  background-repeat:repeat-y,repeat-y,repeat}
+#paper.genkou.vertical #editor{
+  background-image:
+    repeating-linear-gradient(to bottom, var(--gridline) 0, var(--gridline) 1px, transparent 1px, transparent var(--cell)),
+    repeating-linear-gradient(to left, transparent 0, transparent var(--goff), var(--grid) var(--goff), var(--grid) calc(var(--goff) + 1px), transparent calc(var(--goff) + 1px), transparent calc(var(--goff) + var(--cell) - 1px), var(--grid) calc(var(--goff) + var(--cell) - 1px), var(--grid) calc(var(--goff) + var(--cell)), transparent calc(var(--goff) + var(--cell)), transparent var(--lp)),
+    repeating-linear-gradient(to left, transparent 0, transparent calc(var(--rows) * var(--lp) - 2px), var(--pagebreak) calc(var(--rows) * var(--lp) - 2px), var(--pagebreak) calc(var(--rows) * var(--lp)));
+  background-size:var(--lp) calc(var(--cols) * var(--cell) + 1px), var(--lp) calc(var(--cols) * var(--cell) + 1px), calc(var(--rows) * var(--lp)) 100%;
+  background-position:right top;background-repeat:repeat-x,repeat-x,repeat}
+
+/* ===== ツールパレット（右） ===== */
+#palette{width:268px;background:var(--ui-bar);border-left:1px solid var(--ui-line);display:flex;flex-direction:column;min-height:0}
+#palette.hidden{display:none}
+#palette .tabs{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--ui-line)}
+#palette .tabs button{flex:1;border-radius:0;padding:5px 2px;font-size:12px}
+#palette .tabs button.on{border-bottom:2px solid var(--ui-accent);background:transparent}
+#palette .pane{display:none;padding:8px;overflow:auto;flex:1}
+#palette .pane.on{display:block}
+.pal-group{border:1px solid var(--ui-line);border-radius:5px;padding:6px 8px;margin-bottom:8px;background:var(--ui-bg)}
+.pal-group h4{margin:0 0 6px;font-size:12px;color:var(--ui-accent)}
+.pal-row{display:flex;flex-wrap:wrap;gap:3px;align-items:center;margin:3px 0}
+.pal-row label{display:flex;align-items:center;gap:4px;font-size:12px}
+.pal-row input[type=number],.pal-row select,.pal-row input[type=text]{border:1px solid var(--ui-line);border-radius:3px;background:var(--ui-bar);padding:2px 4px;width:5.5em}
+.pal-row select{width:auto;max-width:100%}
+.pal-row input[type=text]{width:100%}
+.pal-row button{border:1px solid var(--ui-line);background:var(--ui-bar)}
+.pal-row button.wide{flex:1}
+.stat{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12px}
+.stat b{font-weight:700;text-align:right}
+#jumplist,#kousei-list{list-style:none;margin:0;padding:0;font-size:12px}
+#jumplist li,#kousei-list li{padding:4px 6px;border-bottom:1px solid var(--ui-line);cursor:pointer}
+#jumplist li:hover,#kousei-list li:hover{background:var(--ui-hover)}
+#jumplist li.h2{padding-left:16px}
+#jumplist li.h3{padding-left:28px}
+#kousei-list .lv{display:inline-block;min-width:3.2em;font-size:11px;border-radius:3px;padding:0 4px;margin-right:4px;color:#fff;background:#888}
+#kousei-list .lv.warn{background:#d97706}
+#kousei-list .lv.err{background:#c62828}
+#kousei-list .lv.note{background:#3b6fb6}
+
+/* ===== シートタブ ===== */
+#sheetbar{display:flex;align-items:center;gap:2px;background:var(--ui-bar);border-top:1px solid var(--ui-line);padding:2px 6px;font-size:12px}
+#sheetbar .tab{border:1px solid var(--ui-line);border-bottom:0;border-radius:4px 4px 0 0;padding:2px 12px;background:var(--ui-bg)}
+#sheetbar .tab.on{background:var(--paper);color:#111;font-weight:700}
+#sheetbar .add{padding:1px 8px}
+#sheetbar .spacer{flex:1}
+#sheetbar select{border:1px solid var(--ui-line);border-radius:3px;background:var(--ui-bg);padding:1px 4px}
+
+/* ===== ステータスバー ===== */
+#statusbar{display:flex;gap:14px;align-items:center;padding:2px 10px;background:var(--ui-bar);border-top:1px solid var(--ui-line);font-size:12px;white-space:nowrap;overflow:hidden}
+#statusbar .spacer{flex:1}
+#statusbar .chip{padding:0 8px;border-left:1px solid var(--ui-line)}
+
+/* ===== ファンクションキーバー ===== */
+#fkeybar{display:grid;grid-template-columns:repeat(12,1fr);gap:2px;padding:3px 6px;background:var(--fkey-bg);color:var(--fkey-text)}
+#fkeybar.hidden{display:none}
+#fkeybar button{color:var(--fkey-text);border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);padding:2px 4px;font-size:11px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#fkeybar button:hover{background:rgba(255,255,255,.18)}
+#fkeybar button span{color:var(--fkey-num);font-weight:700;margin-right:4px}
+
+/* ===== ダイアログ ===== */
+dialog{border:1px solid var(--ui-line);border-radius:6px;padding:0;background:var(--ui-bar);color:var(--ui-text);min-width:360px;max-width:min(680px,92vw)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+dialog header{padding:8px 14px;background:linear-gradient(#3f6fb5,#2b569a);color:#fff;font-weight:700;border-radius:6px 6px 0 0}
+dialog .body{padding:12px 14px;max-height:70vh;overflow:auto}
+dialog footer{display:flex;justify-content:flex-end;gap:6px;padding:8px 14px;border-top:1px solid var(--ui-line)}
+dialog footer button{border:1px solid var(--ui-line);background:var(--ui-bg);padding:4px 16px}
+dialog footer button.primary{background:var(--ui-accent);color:#fff;border-color:var(--ui-accent)}
+.form{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;align-items:center}
+.form input,.form select{border:1px solid var(--ui-line);border-radius:3px;background:var(--ui-bg);padding:3px 6px;width:100%}
+.form .full{grid-column:1 / -1}
+.hint{font-size:11px;opacity:.75;margin-top:6px}
+dialog table.help{border-collapse:collapse;width:100%;font-size:12px}
+dialog table.help td{border-bottom:1px solid var(--ui-line);padding:3px 6px}
+dialog table.help kbd{background:var(--ui-bg);border:1px solid var(--ui-line);border-radius:3px;padding:0 5px;font-family:inherit}
+
+/* ===== 印刷 ===== */
+@media print{
+  body{background:#fff;overflow:visible;display:block}
+  #titlebar,#menubar,#toolbar,#palette,#sheetbar,#statusbar,#fkeybar,dialog{display:none !important}
+  #main,#desk{display:block;overflow:visible;padding:0;background:#fff}
+  #paperwrap{zoom:1}
+  #paper{box-shadow:none;min-height:0}
+  #editor{background-image:none !important}
+  #paper.genkou #editor{background-image:inherit}
+}
+
+/* ===== スマホ幅 ===== */
+@media (max-width:760px){
+  #palette{position:absolute;right:0;top:0;bottom:0;z-index:20;box-shadow:-6px 0 18px rgba(0,0,0,.3)}
+  #desk{padding:16px}
+  #fkeybar{grid-template-columns:repeat(6,1fr)}
+  #titlebar input{width:10em}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== タイトル行 ===== -->
+<div id="titlebar">
+  <span class="logo">和</span>
+  <span>和文ワープロ Web</span>
+  <span style="opacity:.6">－</span>
+  <input id="doctitle" value="無題文書" aria-label="文書名" spellcheck="false">
+  <span class="spacer"></span>
+  <span class="saved" id="savestate">未保存</span>
+</div>
+
+<!-- ===== メニューバー（Escでフォーカス） ===== -->
+<nav id="menubar" aria-label="メニュー"></nav>
+
+<!-- ===== ツールバー ===== -->
+<div id="toolbar">
+  <button data-cmd="new" title="新規">📄</button>
+  <button data-cmd="open" title="開く">📂</button>
+  <button data-cmd="save" title="保存（ブラウザ）">💾</button>
+  <button data-cmd="print" title="印刷">🖨</button>
+  <span class="sep"></span>
+  <button data-cmd="undo" title="元に戻す">↶</button>
+  <button data-cmd="redo" title="やり直し">↷</button>
+  <span class="sep"></span>
+  <select id="sel-font" title="書体">
+    <option value="mincho">明朝</option>
+    <option value="gothic">ゴシック</option>
+  </select>
+  <select id="sel-size" title="文字サイズ（pt）"></select>
+  <button data-cmd="bold" title="太字"><b>B</b></button>
+  <button data-cmd="italic" title="斜体"><i>I</i></button>
+  <button data-cmd="underline" title="下線"><u>U</u></button>
+  <button data-cmd="strike" title="取消線"><s>S</s></button>
+  <input type="color" id="fore-color" value="#111111" title="文字色" style="width:26px;height:24px;padding:0;border:1px solid var(--ui-line);border-radius:3px;background:none">
+  <span class="sep"></span>
+  <button data-cmd="ruby" title="ふりがな（ルビ）">ル<small>ビ</small></button>
+  <button data-cmd="boten" title="傍点">傍</button>
+  <button data-cmd="tcy" title="縦中横">縦<small>中</small></button>
+  <button data-cmd="kakomi" title="囲み文字">囲</button>
+  <button data-cmd="marker" title="マーカー">🖍</button>
+  <button data-cmd="clear" title="書式解除">✕</button>
+  <span class="sep"></span>
+  <button data-cmd="alignL" title="左揃え／上揃え">⇤</button>
+  <button data-cmd="alignC" title="中央揃え">⇹</button>
+  <button data-cmd="alignR" title="右揃え／下揃え">⇥</button>
+  <span class="sep"></span>
+  <button id="btn-vertical" data-cmd="toggleVertical" title="縦書き／横書き（F5）">縦</button>
+  <button id="btn-genkou" data-cmd="toggleGenkou" title="原稿用紙（F6）">原</button>
+  <button id="btn-draft" data-cmd="toggleDraft" title="ドラフト編集／イメージ編集">簡</button>
+  <span class="sep"></span>
+  <select id="sel-zoom" title="表示倍率">
+    <option value="fit">幅に合わせる</option><option value="0.6">60%</option><option value="0.8">80%</option><option value="1" selected>100%</option>
+    <option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option>
+  </select>
+  <button data-cmd="togglePalette" title="ツールパレット表示切替">▤</button>
+</div>
+
+<!-- ===== 本体 ===== -->
+<div id="main">
+  <div id="desk">
+    <div id="paperwrap">
+      <div id="paper">
+        <div id="editor" contenteditable="true" spellcheck="false" aria-label="本文"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ツールパレット -->
+  <aside id="palette" aria-label="ツールパレット">
+    <div class="tabs" role="tablist">
+      <button data-pane="moji" class="on">文字</button>
+      <button data-pane="danraku">段落</button>
+      <button data-pane="sonyu">挿入</button>
+      <button data-pane="kyouzai">教材</button>
+      <button data-pane="bunsho">文書</button>
+      <button data-pane="jump">ジャンプ</button>
+      <button data-pane="kousei">校正</button>
+    </div>
+
+    <section class="pane on" data-pane="moji">
+      <div class="pal-group"><h4>文字飾り</h4>
+        <div class="pal-row">
+          <button data-cmd="bold"><b>太字</b></button><button data-cmd="italic"><i>斜体</i></button>
+          <button data-cmd="underline"><u>下線</u></button><button data-cmd="strike"><s>取消</s></button>
+        </div>
+        <div class="pal-row">
+          <button data-cmd="ruby">ふりがな</button><button data-cmd="boten">傍点</button>
+          <button data-cmd="tcy">縦中横</button><button data-cmd="kakomi">囲み</button><button data-cmd="marker">マーカー</button>
+        </div>
+        <div class="pal-row"><button data-cmd="clear" class="wide">書式をすべて解除</button></div>
+      </div>
+      <div class="pal-group"><h4>文字サイズ（選択範囲）</h4>
+        <div class="pal-row" id="size-quick"></div>
+      </div>
+      <div class="pal-group"><h4>記号</h4>
+        <div class="pal-row" id="symbol-row"></div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="danraku">
+      <div class="pal-group"><h4>段落スタイル</h4>
+        <div class="pal-row">
+          <button data-block="p">本文</button><button data-block="h1">見出し1</button>
+          <button data-block="h2">見出し2</button><button data-block="h3">見出し3</button><button data-block="blockquote">引用</button>
+        </div>
+      </div>
+      <div class="pal-group"><h4>揃え</h4>
+        <div class="pal-row">
+          <button data-cmd="alignL">左（上）</button><button data-cmd="alignC">中央</button>
+          <button data-cmd="alignR">右（下）</button><button data-cmd="alignJ">均等</button>
+        </div>
+      </div>
+      <div class="pal-group"><h4>字下げ</h4>
+        <div class="pal-row">
+          <button data-cmd="indent">字下げ＋</button><button data-cmd="outdent">字下げ－</button>
+          <button data-cmd="autoIndent" class="wide">段落頭を全角1字下げ（全文）</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="sonyu">
+      <div class="pal-group"><h4>挿入</h4>
+        <div class="pal-row">
+          <button data-cmd="pagebreak">改ページ</button><button data-cmd="date">日付</button>
+          <button data-cmd="hr">区切り線</button><button data-cmd="link">リンク</button>
+        </div>
+      </div>
+      <div class="pal-group"><h4>罫線（表）</h4>
+        <div class="pal-row">
+          <label>行 <input type="number" id="tbl-rows" value="3" min="1" max="30"></label>
+          <label>列 <input type="number" id="tbl-cols" value="3" min="1" max="12"></label>
+          <button data-cmd="table" class="wide">表を作成</button>
+        </div>
+        <div class="pal-row">
+          <button data-cmd="tblRow">行を追加</button><button data-cmd="tblCol">列を追加</button>
+          <button data-cmd="tblDelRow">行を削除</button><button data-cmd="tblDelCol">列を削除</button><button data-cmd="tblDel">表を削除</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="kyouzai">
+      <div class="pal-group"><h4>教材テンプレート</h4>
+        <div class="pal-row">
+          <button data-tpl="kokugo" class="wide">国語テスト（縦書き・ルビ）</button>
+        </div>
+        <div class="pal-row">
+          <button data-tpl="print" class="wide">授業プリント（横書き・枠付き）</button>
+        </div>
+        <div class="pal-row">
+          <button data-tpl="genkou" class="wide">原稿用紙（作文・20×20）</button>
+        </div>
+      </div>
+      <div class="pal-group"><h4>ヘッダー・氏名・配点</h4>
+        <div class="pal-row">
+          <button data-cmd="insNameBox" class="wide">氏名欄【年 組 名前】</button>
+          <button data-cmd="insScoreBox" class="wide">得点欄 [　 / 100点]</button>
+        </div>
+      </div>
+      <div class="pal-group"><h4>大問・設問番号</h4>
+        <div class="pal-row" id="daimon-row">
+          <button data-ins="【１】">【１】</button><button data-ins="【２】">【２】</button><button data-ins="【３】">【３】</button><button data-ins="【４】">【４】</button>
+        </div>
+        <div class="pal-row" id="shomon-row">
+          <button data-ins="(1)">(1)</button><button data-ins="(2)">(2)</button><button data-ins="(3)">(3)</button><button data-ins="(4)">(4)</button><button data-ins="(5)">(5)</button>
+        </div>
+        <div class="pal-row" id="maru-row">
+          <button data-ins="①">①</button><button data-ins="②">②</button><button data-ins="③">③</button><button data-ins="④">④</button><button data-ins="⑤">⑤</button><button data-ins="⑥">⑥</button>
+        </div>
+        <div class="pal-row" id="sentaku-row">
+          <button data-ins="ア">ア</button><button data-ins="イ">イ</button><button data-ins="ウ">ウ</button><button data-ins="エ">エ</button><button data-ins="オ">オ</button>
+        </div>
+      </div>
+      <div class="pal-group"><h4>解答欄・枠</h4>
+        <div class="pal-row">
+          <button data-cmd="insAnsBox">短文解答枠</button>
+          <button data-cmd="insAnsBoxLg">記述解答枠（大）</button>
+        </div>
+        <div class="pal-row">
+          <button data-cmd="insMasu5">5字マス</button>
+          <button data-cmd="insMasu10">10字マス</button>
+          <button data-cmd="insMasu20">20字マス</button>
+        </div>
+        <div class="pal-row">
+          <button data-cmd="insMemoBox" class="wide">まとめ・注意書き枠（破線）</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="bunsho">
+      <div class="pal-group"><h4>文書スタイル</h4>
+        <div class="pal-row"><label>用紙 <select id="ds-paper"><option value="A4">A4</option><option value="B5">B5</option><option value="A5">A5</option><option value="B4">B4</option></select></label>
+          <label>向き <select id="ds-orient"><option value="portrait">縦</option><option value="landscape">横</option></select></label></div>
+        <div class="pal-row"><label>字数 <input type="number" id="ds-cols" min="10" max="80" value="40"></label>
+          <label>行数 <input type="number" id="ds-rows" min="5" max="80" value="36"></label></div>
+        <div class="pal-row"><label>文字 <input type="number" id="ds-pt" min="6" max="40" step="0.5" value="10.5"> pt</label>
+          <label>書体 <select id="ds-font"><option value="mincho">明朝</option><option value="gothic">ゴシック</option></select></label></div>
+        <div class="pal-row"><label>余白 上 <input type="number" id="ds-mt" min="0" max="60" value="25"></label><label>下 <input type="number" id="ds-mb" min="0" max="60" value="25"></label></div>
+        <div class="pal-row"><label>左 <input type="number" id="ds-ml" min="0" max="60" value="25"></label><label>右 <input type="number" id="ds-mr" min="0" max="60" value="25"></label><span style="font-size:11px">mm</span></div>
+        <div class="pal-row">
+          <button data-cmd="dsApply" class="wide">スタイルを適用</button>
+        </div>
+        <div class="pal-row">
+          <button data-preset="genkou">原稿用紙 20×20</button><button data-preset="a4h">A4横書き 40×36</button>
+          <button data-preset="b5v">B5縦書き 30×24</button><button data-preset="novel">文庫風 縦 42×17</button>
+        </div>
+        <p class="hint" id="ds-hint"></p>
+      </div>
+      <div class="pal-group"><h4>文字数</h4>
+        <div class="stat" id="stat"></div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="jump">
+      <div class="pal-group"><h4>ジャンプパレット</h4>
+        <div class="pal-row"><button data-cmd="jumpTop">先頭</button><button data-cmd="jumpEnd">末尾</button><button data-cmd="jumpRefresh">更新</button></div>
+        <ul id="jumplist"></ul>
+      </div>
+      <div class="pal-group"><h4>検索・置換</h4>
+        <div class="pal-row"><input type="text" id="find-text" placeholder="検索する文字列"></div>
+        <div class="pal-row"><input type="text" id="replace-text" placeholder="置換後の文字列"></div>
+        <div class="pal-row"><button data-cmd="findNext">次を検索</button><button data-cmd="replaceOne">置換</button><button data-cmd="replaceAll">すべて置換</button></div>
+        <p class="hint" id="find-hint"></p>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="kousei">
+      <div class="pal-group"><h4>文書校正</h4>
+        <div class="pal-row"><button data-cmd="kousei" class="wide">校正を実行</button></div>
+        <p class="hint">二重助詞・句読点の連続・ら抜き・二重敬語・長すぎる文・表記ゆれ・AIっぽい言い回しをチェックします。</p>
+        <ul id="kousei-list"></ul>
+      </div>
+    </section>
+  </aside>
+</div>
+
+<!-- ===== シートタブ ===== -->
+<div id="sheetbar">
+  <div id="sheettabs" style="display:flex;gap:2px"></div>
+  <button class="add" data-cmd="sheetAdd" title="シートを追加">＋</button>
+  <span class="spacer"></span>
+  <button data-cmd="sheetRename" title="シート名変更">名前変更</button>
+  <button data-cmd="sheetDelete" title="シート削除">削除</button>
+</div>
+
+<!-- ===== ステータスバー ===== -->
+<div id="statusbar">
+  <span id="st-pos">1ページ 1行 1桁</span>
+  <span class="chip" id="st-chars">0字</span>
+  <span class="chip" id="st-mode">横書き</span>
+  <span class="chip" id="st-style">A4 40字×36行</span>
+  <span class="spacer"></span>
+  <span class="chip">Esc＝メニュー</span>
+</div>
+
+<!-- ===== ファンクションキーバー ===== -->
+<div id="fkeybar" aria-label="ファンクションキー"></div>
+
+<!-- ===== ダイアログ ===== -->
+<dialog id="dlg">
+  <header id="dlg-title"></header>
+  <div class="body" id="dlg-body"></div>
+  <footer id="dlg-foot"></footer>
+</dialog>
+<input type="file" id="file-input" accept=".wbw,.jtdg,.json,.txt,.html,.htm" hidden>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const editor = $('#editor'), paper = $('#paper'), root = document.documentElement;
+const STORAGE_KEY = 'wabun-word:doc:v1';
+const LEGACY_STORAGE_KEY = 'ichitaro-generic:doc:v1';
+const MM = 96 / 25.4, PT = 96 / 72;
+const PAPER_MM = { A4: [210, 297], B5: [182, 257], A5: [148, 210], B4: [257, 364] };
+const PT_LIST = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48];
+const SYMBOLS = ['「', '」', '『', '』', '（', '）', '、', '。', '・', '…', '―', '〜', '※', '→', '←', '↑', '↓', '○', '●', '◎', '△', '□', '■', '☆', '★', '①', '②', '③', '④', '⑤', '〒', '℃', '¥'];
+
+/* ===== 文書モデル ===== */
+const defaultStyle = () => ({ paper: 'A4', orient: 'portrait', cols: 40, rows: 36, pt: 10.5, font: 'mincho', mt: 25, mb: 25, ml: 25, mr: 25, vertical: false, genkou: false, draft: false });
+const newSheet = (name = 'シート1', html = '<p><br></p>') => ({ name, html, style: defaultStyle() });
+let doc = { title: '無題文書', sheets: [newSheet()], current: 0, zoom: 1, paletteHidden: false, fkeysHidden: false };
+let dirty = false, saveTimer = null;
+const cur = () => doc.sheets[doc.current];
+
+/* ===== メニュー定義 ===== */
+const MENUS = [
+  ['ファイル(F)', [['新規作成', 'new'], ['開く…', 'open', 'Ctrl+O'], '-', ['保存（ブラウザに）', 'save', 'Ctrl+S'], ['名前を付けて保存（.wbw）', 'saveAs', 'Ctrl+Shift+S'], '-', ['テキストで書き出し', 'exportTxt'], ['HTMLで書き出し', 'exportHtml'], '-', ['印刷…', 'print', 'Ctrl+P']]],
+  ['編集(E)', [['元に戻す', 'undo', 'Ctrl+Z'], ['やり直し', 'redo', 'Ctrl+Y'], '-', ['すべて選択', 'selectAll', 'Ctrl+A'], '-', ['検索…', 'find', 'F3'], ['置換…', 'replace', 'F4']]],
+  ['表示(V)', [['横書き／縦書き 切替', 'toggleVertical', 'F5'], ['原稿用紙', 'toggleGenkou', 'F6'], ['ドラフト編集／イメージ編集', 'toggleDraft'], '-', ['ツールパレット', 'togglePalette'], ['ファンクションキーバー', 'toggleFkeys'], '-', ['ズームイン', 'zoomIn', 'Ctrl++'], ['ズームアウト', 'zoomOut', 'Ctrl+-'], ['100%', 'zoomReset', 'Ctrl+0'], '-', ['配色：明／暗 切替', 'toggleTheme']]],
+  ['挿入(I)', [['改ページ', 'pagebreak', 'Ctrl+Enter'], ['日付', 'date'], ['区切り線', 'hr'], ['リンク…', 'link'], '-', ['ふりがな…', 'ruby', 'F7'], ['記号…', 'symbols']]],
+  ['書式(O)', [['太字', 'bold', 'Ctrl+B'], ['斜体', 'italic', 'Ctrl+I'], ['下線', 'underline', 'Ctrl+U'], ['取消線', 'strike'], '-', ['傍点', 'boten'], ['縦中横', 'tcy'], ['囲み文字', 'kakomi'], ['マーカー', 'marker'], '-', ['書式解除', 'clear'], '-', ['文書スタイル…', 'docStyle', 'F9']]],
+  ['罫線(K)', [['表を作成…', 'table', 'F8'], ['行を追加', 'tblRow'], ['列を追加', 'tblCol'], ['行を削除', 'tblDelRow'], ['列を削除', 'tblDelCol'], ['表を削除', 'tblDel']]],
+  ['ツール(T)', [['文字数カウント', 'countDialog', 'F2'], ['文書校正', 'kousei', 'F10'], ['ジャンプパレット', 'jump', 'F11'], '-', ['シートを追加', 'sheetAdd'], ['シート名を変更…', 'sheetRename'], ['シートを削除', 'sheetDelete'], '-', ['ブラウザ保存データを消去', 'clearStorage']]],
+  ['ヘルプ(H)', [['操作ガイド', 'help', 'F1'], ['和文ワープロ Web について', 'about']]],
+];
+const FKEYS = [['F1', 'ヘルプ', 'help'], ['F2', '文字数', 'countDialog'], ['F3', '検索', 'find'], ['F4', '置換', 'replace'], ['F5', '縦横切替', 'toggleVertical'], ['F6', '原稿用紙', 'toggleGenkou'], ['F7', 'ふりがな', 'ruby'], ['F8', '表作成', 'table'], ['F9', '文書スタイル', 'docStyle'], ['F10', '校正', 'kousei'], ['F11', 'ジャンプ', 'jump'], ['F12', '全画面', 'fullscreen']];
+
+function buildMenus() {
+  const bar = $('#menubar');
+  MENUS.forEach(([label, items]) => {
+    const wrap = document.createElement('div'); wrap.className = 'menu'; wrap.setAttribute('aria-expanded', 'false');
+    const btn = document.createElement('button'); btn.textContent = label; btn.setAttribute('aria-haspopup', 'true');
+    const dd = document.createElement('div'); dd.className = 'dropdown'; dd.setAttribute('role', 'menu');
+    items.forEach(it => {
+      if (it === '-') { dd.appendChild(document.createElement('hr')); return; }
+      const b = document.createElement('button'); b.setAttribute('role', 'menuitem');
+      b.innerHTML = `<span>${it[0]}</span>${it[2] ? `<kbd>${it[2]}</kbd>` : ''}`;
+      b.addEventListener('click', () => { closeMenus(); run(it[1]); });
+      dd.appendChild(b);
+    });
+    btn.addEventListener('click', () => toggleMenu(wrap));
+    btn.addEventListener('mouseenter', () => { if ($('#menubar .menu[aria-expanded="true"]')) openMenu(wrap); });
+    wrap.append(btn, dd); bar.appendChild(wrap);
+  });
+  document.addEventListener('click', e => { if (!e.target.closest('#menubar')) closeMenus(); });
+  bar.addEventListener('keydown', menuKeys);
+}
+function openMenu(w) { closeMenus(); w.setAttribute('aria-expanded', 'true'); w.querySelector('button').focus(); }
+function toggleMenu(w) { w.getAttribute('aria-expanded') === 'true' ? closeMenus() : openMenu(w); }
+function closeMenus() { $$('#menubar .menu').forEach(m => m.setAttribute('aria-expanded', 'false')); }
+function menuKeys(e) {
+  const menus = $$('#menubar .menu'); const openIdx = menus.findIndex(m => m.getAttribute('aria-expanded') === 'true');
+  const focusedTop = menus.findIndex(m => m.querySelector(':scope > button') === document.activeElement);
+  const idx = openIdx >= 0 ? openIdx : focusedTop;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    e.preventDefault(); const n = (idx + (e.key === 'ArrowRight' ? 1 : -1) + menus.length) % menus.length;
+    openIdx >= 0 ? openMenu(menus[n]) : menus[n].querySelector('button').focus();
+  } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault(); if (idx < 0) return; if (openIdx < 0) openMenu(menus[idx]);
+    const items = $$('.dropdown button', menus[idx]); const ci = items.indexOf(document.activeElement);
+    const ni = ci < 0 ? (e.key === 'ArrowDown' ? 0 : items.length - 1) : (ci + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+    items[ni].focus();
+  } else if (e.key === 'Escape') { e.preventDefault(); closeMenus(); editor.focus(); }
+  else if (e.key === 'Enter' && idx >= 0 && openIdx < 0) { e.preventDefault(); openMenu(menus[idx]); }
+}
+
+function buildFkeys() {
+  const bar = $('#fkeybar');
+  FKEYS.forEach(([k, label, cmd]) => {
+    const b = document.createElement('button'); b.innerHTML = `<span>${k}</span>${label}`; b.title = `${k}：${label}`;
+    b.addEventListener('click', () => run(cmd)); bar.appendChild(b);
+  });
+}
+function buildPaletteExtras() {
+  const sel = $('#sel-size'); PT_LIST.forEach(p => { const o = document.createElement('option'); o.value = p; o.textContent = p; sel.appendChild(o); });
+  sel.value = '10.5';
+  const q = $('#size-quick'); [8, 9, 10.5, 12, 14, 18, 24, 36].forEach(p => { const b = document.createElement('button'); b.textContent = p; b.addEventListener('click', () => setFontSize(p)); q.appendChild(b); });
+  const sr = $('#symbol-row'); SYMBOLS.forEach(s => { const b = document.createElement('button'); b.textContent = s; b.style.fontFamily = 'var(--font-mincho)'; b.addEventListener('mousedown', e => e.preventDefault()); b.addEventListener('click', () => insertText(s)); sr.appendChild(b); });
+}
+
+/* ===== 文書スタイル ===== */
+function applyStyle() {
+  const s = cur().style;
+  let [w, h] = PAPER_MM[s.paper] || PAPER_MM.A4; if (s.orient === 'landscape') [w, h] = [h, w];
+  const pw = w * MM, ph = h * MM;
+  const mt = s.mt * MM, mb = s.mb * MM, ml = s.ml * MM, mr = s.mr * MM;
+  const usableW = pw - ml - mr, usableH = ph - mt - mb;
+  const inline = s.vertical ? usableH : usableW, block = s.vertical ? usableW : usableH;
+  let cell = s.pt * PT;
+  let pitch = inline / s.cols; if (pitch < cell) { cell = pitch; }           // 字数が多いときは文字を詰めて収める
+  if (s.genkou) { pitch = cell; }                                             // 原稿用紙はマス目＝文字サイズ
+  let lp = block / s.rows; if (lp < cell * 1.1) lp = cell * 1.1;
+  const set = (k, v) => root.style.setProperty(k, v);
+  set('--paper-w', pw + 'px'); set('--paper-h', ph + 'px');
+  set('--m-top', mt + 'px'); set('--m-bottom', mb + 'px'); set('--m-left', ml + 'px'); set('--m-right', mr + 'px');
+  set('--cell', cell + 'px'); set('--pitch', pitch + 'px'); set('--lp', lp + 'px'); set('--cols', s.cols); set('--rows', s.rows);
+  set('--zoom', effectiveZoom(pw));
+  paper.classList.toggle('vertical', !!s.vertical); paper.classList.toggle('genkou', !!s.genkou);
+  paper.classList.toggle('draft', !!s.draft); paper.classList.toggle('gothic', s.font === 'gothic');
+  $('#btn-vertical').classList.toggle('on', !!s.vertical); $('#btn-genkou').classList.toggle('on', !!s.genkou); $('#btn-draft').classList.toggle('on', !!s.draft);
+  $('#sel-font').value = s.font; $('#sel-zoom').value = String(doc.zoom);
+  $('#st-mode').textContent = (s.vertical ? '縦書き' : '横書き') + (s.genkou ? '・原稿用紙' : '') + (s.draft ? '・ドラフト' : '');
+  $('#st-style').textContent = `${s.paper}${s.orient === 'landscape' ? '横' : ''} ${s.cols}字×${s.rows}行 ${s.pt}pt`;
+  $('#ds-hint').textContent = `文字 ${(cell / PT).toFixed(1)}pt／字送り ${(pitch / PT).toFixed(1)}pt／行送り ${(lp / PT).toFixed(1)}pt（用紙内に自動で収めます）`;
+  ['paper', 'orient', 'cols', 'rows', 'pt', 'font', 'mt', 'mb', 'ml', 'mr'].forEach(k => { const el = $('#ds-' + k); if (el) el.value = s[k]; });
+  let pg = $('#print-page'); if (!pg) { pg = document.createElement('style'); pg.id = 'print-page'; document.head.appendChild(pg); }
+  pg.textContent = `@page{size:${s.paper} ${s.orient};margin:0}`;
+  $('#palette').classList.toggle('hidden', !!doc.paletteHidden); $('#fkeybar').classList.toggle('hidden', !!doc.fkeysHidden);
+}
+function effectiveZoom(pw) {
+  if (doc.zoom !== 'fit') return doc.zoom || 1;
+  const avail = $('#desk').clientWidth - 48; return Math.max(0.3, Math.min(1, avail / (pw || 794)));
+}
+function readStyleForm() {
+  const s = cur().style;
+  s.paper = $('#ds-paper').value; s.orient = $('#ds-orient').value;
+  s.cols = clamp(+$('#ds-cols').value, 5, 100); s.rows = clamp(+$('#ds-rows').value, 3, 100); s.pt = clamp(+$('#ds-pt').value, 5, 60);
+  s.font = $('#ds-font').value; s.mt = +$('#ds-mt').value; s.mb = +$('#ds-mb').value; s.ml = +$('#ds-ml').value; s.mr = +$('#ds-mr').value;
+  applyStyle(); markDirty();
+}
+const clamp = (v, a, b) => Math.min(b, Math.max(a, isNaN(v) ? a : v));
+const PRESETS = {
+  genkou: { paper: 'A4', orient: 'landscape', cols: 20, rows: 20, pt: 12, vertical: true, genkou: true, mt: 20, mb: 20, ml: 25, mr: 25 },
+  a4h: { paper: 'A4', orient: 'portrait', cols: 40, rows: 36, pt: 10.5, vertical: false, genkou: false, mt: 25, mb: 25, ml: 25, mr: 25 },
+  b5v: { paper: 'B5', orient: 'portrait', cols: 30, rows: 24, pt: 10.5, vertical: true, genkou: false, mt: 20, mb: 20, ml: 18, mr: 18 },
+  novel: { paper: 'A5', orient: 'portrait', cols: 42, rows: 17, pt: 9, vertical: true, genkou: false, mt: 15, mb: 15, ml: 15, mr: 15 },
+};
+
+/* ===== 保存・読み込み ===== */
+function syncFromEditor() { cur().html = editor.innerHTML; }
+function loadSheet() {
+  editor.innerHTML = cur().html || '<p><br></p>'; applyStyle(); renderSheetTabs(); updateStatus(); refreshJump();
+}
+function markDirty() { dirty = true; $('#savestate').textContent = '未保存'; clearTimeout(saveTimer); saveTimer = setTimeout(save, 1200); }
+function save() {
+  syncFromEditor(); doc.title = $('#doctitle').value || '無題文書';
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(doc)); dirty = false; $('#savestate').textContent = '保存済 ' + new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }); }
+  catch (e) { $('#savestate').textContent = '保存できません（ブラウザ設定）'; }
+}
+function restore() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    if (!d || !Array.isArray(d.sheets) || !d.sheets.length) return false;
+    doc = d;
+    doc.sheets.forEach(s => { s.style = Object.assign(defaultStyle(), s.style || {}); });
+    doc.current = clamp(doc.current | 0, 0, doc.sheets.length - 1);
+    return true;
+  }
+  catch (e) { return false; }
+}
+function download(name, text, type = 'application/json') {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function safeName() { return ($('#doctitle').value || '無題文書').replace(/[\\/:*?"<>|]/g, '_'); }
+function toText(html) { const d = document.createElement('div'); d.innerHTML = html; d.querySelectorAll('rt').forEach(r => r.remove()); d.querySelectorAll('p,div,h1,h2,h3,li,tr,br,hr,blockquote').forEach(el => el.insertAdjacentText('afterend', '\n')); return d.textContent.replace(/\n{3,}/g, '\n\n').trim(); }
+function sanitizeHtml(html) {
+  const d = document.createElement('div'); d.innerHTML = html;
+  d.querySelectorAll('script,style,iframe,object,embed,link,meta').forEach(el => el.remove());
+  d.querySelectorAll('*').forEach(el => { Array.from(el.attributes).forEach(a => { if (/^on/i.test(a.name) || (a.name === 'href' && /^\s*javascript:/i.test(a.value))) el.removeAttribute(a.name); }); });
+  return d.innerHTML;
+}
+function openFile(file) {
+  const r = new FileReader();
+  r.onload = () => {
+    const text = String(r.result);
+    if (/\.(wbw|jtdg|json)$/i.test(file.name)) {
+      try { const d = JSON.parse(text); if (!d.sheets) throw 0; doc = d; doc.sheets.forEach(s => { s.style = Object.assign(defaultStyle(), s.style || {}); s.html = sanitizeHtml(s.html || ''); }); doc.current = 0; }
+      catch (e) { alert('和文ワープロ形式（.wbw）として読めませんでした。'); return; }
+    } else if (/\.html?$/i.test(file.name)) {
+      const body = text.replace(/^[\s\S]*<body[^>]*>/i, '').replace(/<\/body>[\s\S]*$/i, '');
+      doc = { title: file.name.replace(/\.[^.]+$/, ''), sheets: [newSheet('シート1', sanitizeHtml(body))], current: 0, zoom: 1 };
+    } else {
+      const html = text.split(/\r?\n/).map(l => `<p>${l ? escapeHtml(l) : '<br>'}</p>`).join('');
+      doc = { title: file.name.replace(/\.[^.]+$/, ''), sheets: [newSheet('シート1', html)], current: 0, zoom: 1 };
+    }
+    $('#doctitle').value = doc.title || '無題文書'; loadSheet(); markDirty();
+  };
+  r.readAsText(file, 'utf-8');
+}
+const escapeHtml = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ===== シート ===== */
+function renderSheetTabs() {
+  const box = $('#sheettabs'); box.innerHTML = '';
+  doc.sheets.forEach((s, i) => { const b = document.createElement('button'); b.className = 'tab' + (i === doc.current ? ' on' : ''); b.textContent = s.name; b.addEventListener('click', () => switchSheet(i)); box.appendChild(b); });
+}
+function switchSheet(i) { syncFromEditor(); doc.current = i; loadSheet(); markDirty(); }
+
+/* ===== 編集コマンド ===== */
+function exec(cmd, val = null) { editor.focus(); document.execCommand(cmd, false, val); markDirty(); }
+function insertText(t) { editor.focus(); document.execCommand('insertText', false, t); markDirty(); }
+function insertHtml(h) { editor.focus(); document.execCommand('insertHTML', false, h); markDirty(); }
+function selectionInEditor() { const sel = getSelection(); return sel.rangeCount && editor.contains(sel.anchorNode) ? sel.getRangeAt(0) : null; }
+function wrapSelection(tag, cls, attrs = {}) {
+  const range = selectionInEditor(); if (!range || range.collapsed) { alert('文字を選択してから実行してください。'); return; }
+  const el = document.createElement(tag); if (cls) el.className = cls; Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+  try { range.surroundContents(el); }
+  catch (e) { el.appendChild(range.extractContents()); range.insertNode(el); }
+  getSelection().selectAllChildren(el); markDirty();
+}
+function setFontSize(pt) {
+  const range = selectionInEditor(); if (!range || range.collapsed) { alert('文字を選択してから実行してください。'); return; }
+  wrapSelection('span', null, { style: `font-size:${pt}pt` });
+}
+function insertRuby() {
+  const range = selectionInEditor(); const base = range && !range.collapsed ? range.toString() : '';
+  formDialog('ふりがな（ルビ）', [['親文字', 'base', base], ['ふりがな', 'rt', '']], v => {
+    if (!v.base) return; const html = `<ruby>${escapeHtml(v.base)}<rt>${escapeHtml(v.rt)}</rt></ruby>`;
+    editor.focus(); if (range && !range.collapsed) { getSelection().removeAllRanges(); getSelection().addRange(range); } insertHtml(html);
+  });
+}
+function insertTable(rows, cols) {
+  rows = clamp(rows | 0, 1, 50); cols = clamp(cols | 0, 1, 20);
+  const tr = Array.from({ length: rows }, () => '<tr>' + '<td><br></td>'.repeat(cols) + '</tr>').join('');
+  insertHtml(`<table>${tr}</table><p><br></p>`);
+}
+function closestCell() { const r = selectionInEditor(); if (!r) return null; let n = r.startContainer; if (n.nodeType === 3) n = n.parentNode; return n.closest ? n.closest('td,th') : null; }
+function tableOp(op) {
+  const cell = closestCell(); if (!cell) { alert('表の中にカーソルを置いてから実行してください。'); return; }
+  const row = cell.parentNode, table = cell.closest('table'), ci = Array.from(row.children).indexOf(cell);
+  if (op === 'row') { const nr = row.cloneNode(true); nr.querySelectorAll('td,th').forEach(c => c.innerHTML = '<br>'); row.after(nr); }
+  if (op === 'col') table.querySelectorAll('tr').forEach(r => { const c = document.createElement('td'); c.innerHTML = '<br>'; (r.children[ci] || r.lastElementChild).after(c); });
+  if (op === 'delRow') { row.remove(); if (!table.querySelector('tr')) table.remove(); }
+  if (op === 'delCol') { table.querySelectorAll('tr').forEach(r => r.children[ci] && r.children[ci].remove()); if (!table.querySelector('td,th')) table.remove(); }
+  if (op === 'del') table.remove();
+  markDirty();
+}
+function clearFormat() {
+  exec('removeFormat');
+  const range = selectionInEditor(); if (!range) return;
+  const c = range.commonAncestorContainer; const scope = c.nodeType === 3 ? c.parentNode : c;
+  scope.querySelectorAll('span.boten,span.tcy,span.kakomi,span.marker,span[style],ruby').forEach(el => { if (range.intersectsNode(el)) { if (el.tagName === 'RUBY') el.querySelectorAll('rt').forEach(r => r.remove()); el.replaceWith(...el.childNodes); } });
+  markDirty();
+}
+function autoIndent() {
+  editor.querySelectorAll('p,div').forEach(p => { const t = p.textContent; if (t && !/^[　「『（]/.test(t) && !p.closest('table') && t.trim()) { const first = firstTextNode(p); if (first) first.data = '　' + first.data; } });
+  markDirty();
+}
+function firstTextNode(el) { const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) if (n.data.trim()) return n; return null; }
+
+/* ===== 検索・置換 ===== */
+let lastFind = { text: '', pos: 0 };
+function textNodes() { const w = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, { acceptNode: n => n.parentNode.closest('rt') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT }); const a = []; let n; while ((n = w.nextNode())) a.push(n); return a; }
+function findNext() {
+  const q = $('#find-text').value; if (!q) { $('#find-hint').textContent = '検索する文字列を入れてください。'; return false; }
+  if (q !== lastFind.text) lastFind = { text: q, pos: 0 };
+  const nodes = textNodes(); let offset = 0, hit = null;
+  for (const n of nodes) { const i = n.data.indexOf(q, Math.max(0, lastFind.pos - offset)); if (i >= 0) { hit = [n, i]; break; } offset += n.data.length; }
+  if (!hit) { if (lastFind.pos === 0) { $('#find-hint').textContent = '見つかりませんでした。'; return false; } lastFind.pos = 0; $('#find-hint').textContent = '末尾に達したので先頭から検索します。'; return findNext(); }
+  const r = document.createRange(); r.setStart(hit[0], hit[1]); r.setEnd(hit[0], hit[1] + q.length);
+  const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); hit[0].parentElement.scrollIntoView({ block: 'center', inline: 'center' });
+  lastFind.pos = offset + hit[1] + q.length; $('#find-hint').textContent = `「${q}」を選択しました。`; return true;
+}
+function replaceOne() {
+  const q = $('#find-text').value, rep = $('#replace-text').value; const sel = getSelection();
+  if (sel.rangeCount && sel.toString() === q && q) { editor.focus(); document.execCommand('insertText', false, rep); lastFind.pos -= q.length - rep.length; markDirty(); }
+  findNext();
+}
+function replaceAll() {
+  const q = $('#find-text').value, rep = $('#replace-text').value; if (!q) return; let count = 0;
+  textNodes().forEach(n => { if (n.data.includes(q)) { count += n.data.split(q).length - 1; n.data = n.data.split(q).join(rep); } });
+  $('#find-hint').textContent = `${count}か所を置換しました。`; if (count) markDirty();
+}
+
+/* ===== ジャンプパレット ===== */
+function refreshJump() {
+  const ul = $('#jumplist'); ul.innerHTML = '';
+  const heads = editor.querySelectorAll('h1,h2,h3,hr.pagebreak'); let page = 1;
+  heads.forEach(h => {
+    const li = document.createElement('li');
+    if (h.tagName === 'HR') { page++; li.textContent = `── ${page}ページ ──`; li.style.opacity = .7; }
+    else { li.className = h.tagName.toLowerCase(); li.textContent = h.textContent || '（見出し）'; }
+    li.addEventListener('click', () => { h.scrollIntoView({ block: 'center', inline: 'center' }); const r = document.createRange(); r.selectNodeContents(h); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); editor.focus(); });
+    ul.appendChild(li);
+  });
+  if (!heads.length) { const li = document.createElement('li'); li.textContent = '見出し（見出し1〜3）や改ページを入れると、ここに一覧が出ます。'; li.style.opacity = .7; ul.appendChild(li); }
+}
+
+/* ===== 文字数・カーソル位置 ===== */
+function countStats() {
+  const text = toText(editor.innerHTML);
+  const noWs = text.replace(/\s/g, '');
+  const paras = text.split('\n').filter(l => l.trim().length);
+  const s = cur().style; const lines = paras.reduce((a, l) => a + Math.max(1, Math.ceil([...l].length / s.cols)), 0);
+  const genkouLines = paras.reduce((a, l) => a + Math.max(1, Math.ceil([...l].length / 20)), 0);
+  return { all: [...text.replace(/\n/g, '')].length, noWs: [...noWs].length, noPunct: [...noWs.replace(/[、。，．・「」『』（）()！？!?…―]/g, '')].length, paras: paras.length, lines, pages: Math.max(1, Math.ceil(lines / s.rows)), genkou: Math.ceil(genkouLines / 20), bytes: new TextEncoder().encode(text).length };
+}
+function updateStatus() {
+  const c = countStats();
+  $('#st-chars').textContent = `${c.noWs.toLocaleString()}字（原稿用紙 ${c.genkou}枚）`;
+  $('#stat').innerHTML = [['文字数（空白除く）', c.noWs], ['文字数（空白含む）', c.all], ['句読点を除く', c.noPunct], ['段落数', c.paras], ['行数（現在の字数換算）', c.lines], ['ページ数（概算）', c.pages], ['原稿用紙換算', c.genkou + '枚'], ['バイト数（UTF-8）', c.bytes]].map(([k, v]) => `<span>${k}</span><b>${typeof v === 'number' ? v.toLocaleString() : v}</b>`).join('');
+  updateCaret();
+}
+function updateCaret() {
+  const sel = getSelection(); if (!sel.rangeCount || !editor.contains(sel.anchorNode)) return;
+  const r = sel.getRangeAt(0).cloneRange(); r.collapse(true);
+  let rect = r.getClientRects()[0]; if (!rect) { const n = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentNode; rect = n.getBoundingClientRect(); }
+  const er = editor.getBoundingClientRect(); const s = cur().style; const z = parseFloat(root.style.getPropertyValue('--zoom')) || 1;
+  const lp = parseFloat(root.style.getPropertyValue('--lp')), pitch = parseFloat(root.style.getPropertyValue('--pitch'));
+  let line, col;
+  if (s.vertical) { line = Math.floor((er.right - rect.right) / z / lp) + 1; col = Math.floor((rect.top - er.top) / z / pitch) + 1; }
+  else { line = Math.floor((rect.top - er.top) / z / lp) + 1; col = Math.floor((rect.left - er.left) / z / pitch) + 1; }
+  line = Math.max(1, line); col = Math.max(1, col); const page = Math.floor((line - 1) / s.rows) + 1; const lineInPage = ((line - 1) % s.rows) + 1;
+  $('#st-pos').textContent = `${page}ページ ${lineInPage}行 ${col}桁`;
+}
+
+/* ===== 文書校正 ===== */
+const KOUSEI_RULES = [
+  { lv: 'err', name: '助詞の重複', re: /([をにがはでともへの])\1/g, msg: '同じ助詞が続いています' },
+  { lv: 'err', name: '句読点の連続', re: /[、。]{2,}|、。|。、/g, msg: '句読点が連続しています' },
+  { lv: 'warn', name: 'ら抜き言葉', re: /(見|来|食べ|出|寝|着|起き|変え|考え|降り|決め)れ(る|ます|ない|ば|た)/g, msg: '「ら抜き」の可能性があります' },
+  { lv: 'warn', name: '二重敬語', re: /おっしゃられ|ご覧になられ|お越しになられ|伺わせていただ|拝見させていただ|お伺いさせていただ/g, msg: '二重敬語の可能性があります' },
+  { lv: 'warn', name: '同じ語尾の連続', re: /(ます。)[^。\n]*\1[^。\n]*\1/g, msg: '同じ語尾が3文続いています（リズム単調）' },
+  { lv: 'note', name: '半角カナ', re: /[｡-ﾟ]+/g, msg: '半角カナは全角に揃えましょう' },
+  { lv: 'note', name: '全角英数字', re: /[Ａ-Ｚａ-ｚ０-９]{2,}/g, msg: '全角英数字が混在しています' },
+  { lv: 'note', name: '行頭の半角スペース', re: /^ +/gm, msg: '行頭の半角スペース（字下げは全角スペースで）' },
+  { lv: 'note', name: '読点の多用', re: /(?:[^。\n]*、){5,}[^。\n]*。/g, msg: '一文に読点が5つ以上あります' },
+  { lv: 'warn', name: 'ジョニーNG表現', re: /手書きの温かみ|前例がない(ので|から)|若輩者|私ごとき|とりあえず|頑張ります|かもしれません。[^。]*かもしれません/g, msg: 'ng-words.md に載っている避けたい表現です' },
+  { lv: 'note', name: 'AIっぽい表現', re: /として機能(する|します)|極めて重要|さらなる進化|包括的な|シームレスに|〜を実現(する|します)|重要な役割を果た|言えるでしょう|に他なりません|見逃せません|注目に値します/g, msg: 'humanizer が嫌う言い回しです' },
+];
+function runKousei() {
+  const ul = $('#kousei-list'); ul.innerHTML = ''; const text = toText(editor.innerHTML); const hits = [];
+  KOUSEI_RULES.forEach(rule => { rule.re.lastIndex = 0; let m; while ((m = rule.re.exec(text))) { hits.push({ rule, str: m[0], idx: m.index }); if (hits.length > 300 || !m[0].length) break; } });
+  text.split(/(?<=。)|\n/).forEach(sen => { if ([...sen.replace(/\s/g, '')].length > 100) hits.push({ rule: { lv: 'warn', name: '長い文', msg: '100字を超える文です。分割を検討' }, str: sen.slice(0, 20) + '…', idx: text.indexOf(sen) }); });
+  hits.sort((a, b) => a.idx - b.idx);
+  if (!hits.length) { const li = document.createElement('li'); li.textContent = '指摘はありません。'; ul.appendChild(li); }
+  hits.forEach(h => {
+    const li = document.createElement('li'); li.innerHTML = `<span class="lv ${h.rule.lv}">${h.rule.name}</span>「${escapeHtml(h.str.trim())}」<br><small>${h.rule.msg}</small>`;
+    li.addEventListener('click', () => { $('#find-text').value = h.str.trim().replace(/…$/, ''); lastFind = { text: '', pos: 0 }; findNext(); });
+    ul.appendChild(li);
+  });
+  showPane('kousei'); $('#palette').classList.remove('hidden'); doc.paletteHidden = false;
+  return hits.length;
+}
+
+/* ===== ダイアログ ===== */
+const dlg = $('#dlg');
+function showDialog(title, bodyHtml, buttons) {
+  $('#dlg-title').textContent = title; $('#dlg-body').innerHTML = bodyHtml; const f = $('#dlg-foot'); f.innerHTML = '';
+  buttons.forEach(([label, fn, primary]) => { const b = document.createElement('button'); b.textContent = label; if (primary) b.className = 'primary'; b.addEventListener('click', () => { if (fn && fn() === false) return; dlg.close(); }); f.appendChild(b); });
+  dlg.showModal(); const first = $('#dlg-body input,#dlg-body select'); if (first) first.focus();
+}
+function formDialog(title, fields, onOk) {
+  const html = '<div class="form">' + fields.map(([label, id, val]) => `<label for="f-${id}">${label}</label><input id="f-${id}" value="${escapeHtml(String(val ?? ''))}">`).join('') + '</div>';
+  showDialog(title, html, [['キャンセル', null], ['OK', () => { const v = {}; fields.forEach(([, id]) => v[id] = $('#f-' + id).value); onOk(v); }, true]]);
+  $('#dlg-body').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('#dlg-foot .primary').click(); } };
+}
+function docStyleDialog() { showPane('bunsho'); $('#palette').classList.remove('hidden'); doc.paletteHidden = false; $('#ds-cols').focus(); }
+function helpDialog() {
+  const rows = [['Esc', 'メニューバーに移動（←→で切替、↓で開く）'], ['F1〜F12', '画面下のファンクションキーバー参照'], ['Ctrl+S', 'ブラウザに保存'], ['Ctrl+Shift+S', '.wbwファイルとして保存'], ['Ctrl+B / I / U', '太字／斜体／下線'], ['Ctrl+Enter', '改ページ'], ['Ctrl+F / H', '検索／置換'], ['Ctrl+ + / -', 'ズーム'], ['右パレット', '文字・段落・挿入・教材・文書スタイル・ジャンプ・校正'], ['シート', '画面下のタブで切替。＋で追加']];
+  showDialog('操作ガイド', `<table class="help">${rows.map(([k, v]) => `<tr><td><kbd>${k}</kbd></td><td>${v}</td></tr>`).join('')}</table><p class="hint">ブラウザ自体が予約しているキー（F11の全画面、F12の開発者ツール、Ctrl+Pなど）は、環境によってブラウザ側の動作になることがあります。その場合は画面下のバーをクリックしてください。</p>`, [['閉じる', null, true]]);
+}
+function aboutDialog() {
+  showDialog('和文ワープロ Web について', `<p><b>和文ワープロ Web</b> ver 1.1</p><p>Webブラウザだけで軽快に動く、縦書き・原稿用紙・文書スタイル・教材プリント作成対応の日本語ワープロです。日本の伝統的なワープロの作法を、Web標準技術（HTML5/CSS3/JavaScript）で再現しました。</p><p class="hint">学校現場でのテスト・プリント作成や、作文・原稿用紙での執筆、縦書き小説などの個人用途に自由にお使いいただけます。文書データはお使いのブラウザ内（localStorage）および保存したファイルにのみ保持され、外部サーバーへ送信されることはありません。</p>`, [['閉じる', null, true]]);
+}
+function countDialog() { const c = countStats(); showDialog('文字数カウント', `<div class="stat" style="font-size:13px">${$('#stat').innerHTML}</div><p class="hint">原稿用紙換算は「20字×20行」で段落ごとに改行して数えた枚数です。</p>`, [['閉じる', null, true]]); }
+function symbolsDialog() { showDialog('記号の挿入', `<div class="pal-row">${SYMBOLS.map(s => `<button data-sym="${s}" style="font-family:var(--font-mincho);font-size:16px;border:1px solid var(--ui-line)">${s}</button>`).join('')}</div>`, [['閉じる', null, true]]); $('#dlg-body').onclick = e => { const b = e.target.closest('[data-sym]'); if (b) { dlg.close(); insertText(b.dataset.sym); } }; }
+
+/* ===== パレット ===== */
+function showPane(name) { $$('#palette .tabs button').forEach(b => b.classList.toggle('on', b.dataset.pane === name)); $$('#palette .pane').forEach(p => p.classList.toggle('on', p.dataset.pane === name)); }
+
+/* ===== コマンド実行 ===== */
+function run(cmd) {
+  const s = cur().style;
+  const C = {
+    new: () => { if (!confirm('新しい文書を作ります。今の内容はブラウザ保存済みのものが残りますが、続けますか？')) return; doc = { title: '無題文書', sheets: [newSheet()], current: 0, zoom: 1 }; $('#doctitle').value = doc.title; loadSheet(); markDirty(); },
+    open: () => $('#file-input').click(),
+    save: () => save(),
+    saveAs: () => { syncFromEditor(); doc.title = $('#doctitle').value; download(safeName() + '.wbw', JSON.stringify(doc, null, 1)); },
+    exportTxt: () => { syncFromEditor(); download(safeName() + '.txt', doc.sheets.map(sh => (doc.sheets.length > 1 ? `■ ${sh.name}\n` : '') + toText(sh.html)).join('\n\n'), 'text/plain;charset=utf-8'); },
+    exportHtml: () => { syncFromEditor(); const st = cur().style; download(safeName() + '.html', `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>${escapeHtml(doc.title)}</title><style>body{font-family:${st.font === 'gothic' ? 'sans-serif' : 'serif'};line-height:1.9;max-width:42em;margin:2em auto;padding:0 1em;${st.vertical ? 'writing-mode:vertical-rl;max-width:none;height:90vh;' : ''}}p{margin:0}.boten{text-emphasis:filled sesame}.tcy{text-combine-upright:all}.kakomi{border:1px solid;padding:0 .1em}.marker{background:#fff59a}table{border-collapse:collapse}td,th{border:1px solid #333;padding:.2em .5em}hr.pagebreak{break-before:page;border:0}</style></head><body>${doc.sheets.map(sh => sh.html).join('<hr class="pagebreak">')}</body></html>`, 'text/html;charset=utf-8'); },
+    print: () => { syncFromEditor(); window.print(); },
+    undo: () => exec('undo'), redo: () => exec('redo'), selectAll: () => exec('selectAll'),
+    find: () => { showPane('jump'); $('#palette').classList.remove('hidden'); doc.paletteHidden = false; const sel = getSelection().toString(); if (sel && !sel.includes('\n')) $('#find-text').value = sel; $('#find-text').focus(); },
+    replace: () => { C.find(); $('#replace-text').focus(); },
+    findNext, replaceOne, replaceAll,
+    toggleVertical: () => { s.vertical = !s.vertical; applyStyle(); markDirty(); },
+    toggleGenkou: () => { s.genkou = !s.genkou; if (s.genkou && !(s.cols === 20 && s.rows === 20)) { if (confirm('原稿用紙の定番 20字×20行 に文書スタイルを合わせますか？')) Object.assign(s, PRESETS.genkou); } applyStyle(); markDirty(); },
+    toggleDraft: () => { s.draft = !s.draft; applyStyle(); markDirty(); },
+    togglePalette: () => { doc.paletteHidden = !doc.paletteHidden; applyStyle(); markDirty(); },
+    toggleFkeys: () => { doc.fkeysHidden = !doc.fkeysHidden; applyStyle(); markDirty(); },
+    toggleTheme: () => { const cur = root.dataset.theme; const dark = cur ? cur === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; root.dataset.theme = dark ? 'light' : 'dark'; try { localStorage.setItem('wabun-word:theme', root.dataset.theme); } catch (e) { } },
+    zoomIn: () => { doc.zoom = Math.min(3, +((+doc.zoom || 1) + 0.1).toFixed(2)); applyStyle(); }, zoomOut: () => { doc.zoom = Math.max(0.3, +((+doc.zoom || 1) - 0.1).toFixed(2)); applyStyle(); }, zoomReset: () => { doc.zoom = 1; applyStyle(); },
+    pagebreak: () => { insertHtml('<hr class="pagebreak"><p><br></p>'); refreshJump(); },
+    date: () => insertText(new Intl.DateTimeFormat('ja-JP-u-ca-japanese', { era: 'long', year: 'numeric', month: 'long', day: 'numeric' }).format(new Date())),
+    hr: () => insertHtml('<hr><p><br></p>'),
+    link: () => { const r = selectionInEditor(); formDialog('リンク', [['表示文字', 'text', r ? r.toString() : ''], ['URL', 'url', 'https://']], v => { if (!/^https?:\/\//i.test(v.url)) { alert('http:// または https:// で始まるURLを入れてください。'); return; } if (r) { getSelection().removeAllRanges(); getSelection().addRange(r); } insertHtml(`<a href="${escapeHtml(v.url)}" target="_blank" rel="noopener">${escapeHtml(v.text || v.url)}</a>`); }); },
+    ruby: insertRuby, symbols: symbolsDialog,
+    bold: () => exec('bold'), italic: () => exec('italic'), underline: () => exec('underline'), strike: () => exec('strikeThrough'),
+    boten: () => wrapSelection('span', 'boten'), tcy: () => wrapSelection('span', 'tcy'), kakomi: () => wrapSelection('span', 'kakomi'), marker: () => wrapSelection('span', 'marker'),
+    clear: clearFormat,
+    alignL: () => exec('justifyLeft'), alignC: () => exec('justifyCenter'), alignR: () => exec('justifyRight'), alignJ: () => exec('justifyFull'),
+    indent: () => exec('indent'), outdent: () => exec('outdent'), autoIndent,
+    docStyle: docStyleDialog, dsApply: readStyleForm,
+    table: () => { if ($('#palette .pane.on').dataset.pane === 'sonyu' && !$('#palette').classList.contains('hidden')) insertTable(+$('#tbl-rows').value, +$('#tbl-cols').value); else formDialog('表を作成', [['行数', 'rows', 3], ['列数', 'cols', 3]], v => insertTable(+v.rows, +v.cols)); },
+    tblRow: () => tableOp('row'), tblCol: () => tableOp('col'), tblDelRow: () => tableOp('delRow'), tblDelCol: () => tableOp('delCol'), tblDel: () => tableOp('del'),
+    countDialog, kousei: runKousei,
+    jump: () => { showPane('jump'); $('#palette').classList.remove('hidden'); doc.paletteHidden = false; refreshJump(); },
+    jumpTop: () => { const r = document.createRange(); r.selectNodeContents(editor); r.collapse(true); const sl = getSelection(); sl.removeAllRanges(); sl.addRange(r); editor.focus(); editor.scrollIntoView({ block: 'start', inline: 'end' }); },
+    jumpEnd: () => { const r = document.createRange(); r.selectNodeContents(editor); r.collapse(false); const sl = getSelection(); sl.removeAllRanges(); sl.addRange(r); editor.focus(); (editor.lastElementChild || editor).scrollIntoView({ block: 'end', inline: 'start' }); },
+    jumpRefresh: refreshJump,
+    insNameBox: () => insertHtml('<div class="name-box"><span>組：</span><span style="display:inline-block;width:3em;border-bottom:1px solid #555">&nbsp;</span><span>番&nbsp;氏名：</span><span style="display:inline-block;width:10em;border-bottom:1px solid #555">&nbsp;</span></div><p><br></p>'),
+    insScoreBox: () => insertHtml('<div class="score-box">得点 <span style="display:inline-block;min-width:3em;text-align:right">&nbsp;</span> / 100</div><p><br></p>'),
+    insAnsBox: () => insertHtml('<span class="ans-box">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>'),
+    insAnsBoxLg: () => insertHtml('<div class="ans-box-lg"><small style="opacity:.6">【解答記入欄】</small></div><p><br></p>'),
+    insMasu5: () => insertHtml('<span class="masu-grid"><span></span><span></span><span></span><span></span><span></span></span>'),
+    insMasu10: () => insertHtml('<span class="masu-grid"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>'),
+    insMasu20: () => insertHtml('<span class="masu-grid">' + '<span></span>'.repeat(20) + '</span>'),
+    insMemoBox: () => insertHtml('<div class="memo-box"><b>◆ まとめ・注意</b><p>ここに重要なポイントを記入します。</p></div><p><br></p>'),
+    sheetAdd: () => { syncFromEditor(); doc.sheets.push(newSheet(`シート${doc.sheets.length + 1}`)); doc.sheets[doc.sheets.length - 1].style = Object.assign(defaultStyle(), s); doc.current = doc.sheets.length - 1; loadSheet(); markDirty(); },
+    sheetRename: () => formDialog('シート名の変更', [['シート名', 'name', cur().name]], v => { if (v.name.trim()) { cur().name = v.name.trim(); renderSheetTabs(); markDirty(); } }),
+    sheetDelete: () => { if (doc.sheets.length <= 1) { alert('最後のシートは削除できません。'); return; } if (!confirm(`シート「${cur().name}」を削除しますか？`)) return; doc.sheets.splice(doc.current, 1); doc.current = Math.max(0, doc.current - 1); loadSheet(); markDirty(); },
+    clearStorage: () => { if (confirm('ブラウザに保存した文書データを消去します。書き出したファイルは残ります。よろしいですか？')) { try { localStorage.removeItem(STORAGE_KEY); } catch (e) { } $('#savestate').textContent = '消去しました'; } },
+    help: helpDialog, about: aboutDialog,
+    fullscreen: () => { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => { }); },
+  };
+  if (C[cmd]) C[cmd](); updateStatus();
+}
+
+/* ===== 教材テンプレート定義 ===== */
+const KYOUZAI_TEMPLATES = {
+  kokugo: {
+    title: '国語単元テスト（サンプル）',
+    style: { paper: 'A4', orient: 'portrait', cols: 30, rows: 22, pt: 11, font: 'mincho', vertical: true, genkou: false, mt: 20, mb: 20, ml: 20, mr: 20 },
+    html: `<h1>五年生・国語 単元たしかめテスト</h1><div style="text-align:right"><div class="name-box"><span>５年&nbsp;組&nbsp;番&nbsp;氏名【</span><span style="display:inline-block;width:8em">&nbsp;</span><span>】</span></div>&nbsp;<div class="score-box">得点&nbsp;&nbsp;&nbsp;&nbsp;/ 100</div></div><p><br></p><h2>【１】次の漢字の<ruby>読<rt>よ</rt></ruby>みをひらがなで書きましょう。（各１０点）</h2><p>①&nbsp;川の<span class="boten">流れ</span>を観察する。<span class="ans-box">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p><p>②&nbsp;大地の<span class="boten">変化</span>を調べる。<span class="ans-box">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p><p>③&nbsp;美しい<span class="boten">景色</span>が広がる。<span class="ans-box">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p><p><br></p><h2>【２】次の問いに答えましょう。（各２０点）</h2><p>(1)&nbsp;上流と下流の石の形の違いについて、あなたの考えを２０字以内で説明しなさい。</p><div class="masu-grid"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><p><br></p><p>(2)&nbsp;文章を読んで、筆者がもっとも伝えたいことをまとめなさい。</p><div class="ans-box-lg"><small style="opacity:.6">【記述欄】</small></div>`
+  },
+  print: {
+    title: '理科授業プリント（サンプル）',
+    style: { paper: 'A4', orient: 'portrait', cols: 40, rows: 36, pt: 10.5, font: 'gothic', vertical: false, genkou: false, mt: 20, mb: 20, ml: 20, mr: 20 },
+    html: `<h1>第５学年 理科ワークシート「流れる水のはたらき」</h1><div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0"><div class="memo-box" style="margin:0;padding:4px 10px"><b>本時のめあて：</b>水が流れる量やかたむきによって、はたらきはどう変わるだろうか？</div><div class="name-box"><span>５年&nbsp;&nbsp;組&nbsp;&nbsp;番&nbsp;氏名【</span><span style="display:inline-block;width:8em">&nbsp;</span><span>】</span></div></div><p><br></p><h2>【１】実験の予想</h2><p>水の量を増やしたとき、土のけずられ方はどうなると思いますか？</p><div class="ans-box-lg"><small style="opacity:.6">【予想とその理由】</small></div><p><br></p><h2>【２】実験結果の記録</h2><table><tr><th>条件</th><th>浸食（けずる）</th><th>運搬（運ぶ）</th><th>堆積（積もらせる）</th></tr><tr><td>水の量：少</td><td><br></td><td><br></td><td><br></td></tr><tr><td>水の量：多</td><td><br></td><td><br></td><td><br></td></tr></table><p><br></p><h2>【３】本日のまとめ</h2><div class="memo-box"><b>◆ まとめ</b><p>流れる水には、土地を<span class="ans-box">&nbsp;&nbsp;&nbsp;&nbsp;</span>するはたらき、小石などを<span class="ans-box">&nbsp;&nbsp;&nbsp;&nbsp;</span>するはたらき、積もらせるはたらきがある。</p></div>`
+  },
+  genkou: {
+    title: '作文原稿用紙（サンプル）',
+    style: PRESETS.genkou,
+    html: `<p>　</p><p>　　　秋の思い出</p><p>　</p><p>　　　　　　　　　　　前多　昌顕</p><p>　涼しい風が吹くようになり、校庭の木々も少しずつ色づいてきました。</p><p>　今年の秋は、子どもたちと一緒に理科の観察やプログラミングの学習に取り組んでいます。</p>`
+  }
+};
+
+function applyTemplate(key) {
+  const tpl = KYOUZAI_TEMPLATES[key]; if (!tpl) return;
+  if (!confirm(`テンプレート「${tpl.title}」を読み込みますか？（現在のシートが上書きされます）`)) return;
+  $('#doctitle').value = tpl.title; doc.title = tpl.title;
+  Object.assign(cur().style, tpl.style);
+  cur().html = tpl.html;
+  loadSheet(); markDirty();
+}
+
+/* ===== イベント ===== */
+function bind() {
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-cmd]'); if (b && !b.closest('#menubar')) { e.preventDefault(); run(b.dataset.cmd); return; }
+    const ins = e.target.closest('[data-ins]'); if (ins) { e.preventDefault(); insertText(ins.dataset.ins); return; }
+    const tpl = e.target.closest('[data-tpl]'); if (tpl) { e.preventDefault(); applyTemplate(tpl.dataset.tpl); return; }
+    const t = e.target.closest('#palette .tabs button'); if (t) { showPane(t.dataset.pane); if (t.dataset.pane === 'jump') refreshJump(); return; }
+    const blk = e.target.closest('[data-block]'); if (blk) { exec('formatBlock', blk.dataset.block); refreshJump(); return; }
+    const pr = e.target.closest('[data-preset]'); if (pr) { Object.assign(cur().style, PRESETS[pr.dataset.preset]); applyStyle(); markDirty(); updateStatus(); }
+  });
+  // ツールバーのボタンで選択範囲が失われないように
+  $$('#toolbar button, #palette button, #fkeybar button').forEach(b => b.addEventListener('mousedown', e => e.preventDefault()));
+  $('#sel-font').addEventListener('change', e => { cur().style.font = e.target.value; applyStyle(); markDirty(); });
+  $('#sel-size').addEventListener('change', e => setFontSize(+e.target.value));
+  $('#sel-zoom').addEventListener('change', e => { doc.zoom = e.target.value === 'fit' ? 'fit' : +e.target.value; applyStyle(); });
+  window.addEventListener('resize', () => { if (doc.zoom === 'fit') applyStyle(); });
+  $('#fore-color').addEventListener('input', e => exec('foreColor', e.target.value));
+  $('#doctitle').addEventListener('input', markDirty);
+  $('#file-input').addEventListener('change', e => { const f = e.target.files[0]; if (f) openFile(f); e.target.value = ''; });
+  $('#find-text').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); findNext(); } });
+  $('#replace-text').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); replaceOne(); } });
+  $$('#palette [id^="ds-"]').forEach(el => el.addEventListener('change', readStyleForm));
+
+  editor.addEventListener('input', () => { markDirty(); updateStatus(); if (editor.innerHTML.trim() === '' || editor.innerHTML === '<br>') editor.innerHTML = '<p><br></p>'; });
+  editor.addEventListener('paste', e => {
+    e.preventDefault(); const html = e.clipboardData.getData('text/html'), text = e.clipboardData.getData('text/plain');
+    if (html) { const d = document.createElement('div'); d.innerHTML = sanitizeHtml(html); d.querySelectorAll('*').forEach(el => { ['style', 'class', 'id'].forEach(a => { if (!(el.tagName === 'SPAN' && /^(boten|tcy|kakomi|marker)$/.test(el.className))) el.removeAttribute(a); }); }); insertHtml(d.innerHTML); }
+    else insertHtml(text.split(/\r?\n/).map(l => escapeHtml(l)).join('<br>'));
+  });
+  document.addEventListener('selectionchange', () => { if (editor.contains(getSelection().anchorNode)) updateCaret(); });
+  editor.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); run('pagebreak'); }
+    if (e.key === 'Tab') { e.preventDefault(); if (closestCell()) exec(e.shiftKey ? 'outdent' : 'indent'); else insertText('　'); }
+  });
+  document.addEventListener('keydown', e => {
+    if (dlg.open) return;
+    const k = e.key, c = e.ctrlKey || e.metaKey;
+    if (k === 'Escape' && !e.target.closest('#menubar')) { e.preventDefault(); closeMenus(); $('#menubar .menu > button').focus(); return; }
+    const fk = FKEYS.find(f => f[0] === k); if (fk && !c && !e.altKey) { if (k !== 'F11' && k !== 'F12') { e.preventDefault(); run(fk[2]); } return; }
+    if (!c) return;
+    const map = { s: e.shiftKey ? 'saveAs' : 'save', o: 'open', p: 'print', f: 'find', h: 'replace', b: 'bold', i: 'italic', u: 'underline', '+': 'zoomIn', ';': 'zoomIn', '-': 'zoomOut', '0': 'zoomReset' };
+    const cmd = map[k.toLowerCase()] || (k === '=' ? 'zoomIn' : null);
+    if (cmd) { e.preventDefault(); run(cmd); }
+  });
+  window.addEventListener('beforeunload', e => { if (dirty) { save(); } });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && dirty) save(); });
+}
+
+/* ===== 起動 ===== */
+function init() {
+  try { const t = localStorage.getItem('wabun-word:theme') || localStorage.getItem('ichitaro-generic:theme'); if (t) root.dataset.theme = t; } catch (e) { }
+  buildMenus(); buildFkeys(); buildPaletteExtras(); bind();
+  const restored = restore();
+  if (matchMedia('(max-width:760px)').matches) { doc.paletteHidden = true; if (!restored) doc.zoom = 'fit'; }
+  if (!restored) {
+    cur().html = `<h1>和文ワープロ Webへようこそ</h1><p>　これは、Webブラウザだけで軽快に動く日本語ワープロです。縦書き、原稿用紙、字数×行数指定、教材・テスト作成に対応しています。</p><p>　<b>Esc</b>キーを押すとメニューバーに移ります。画面下の<b>ファンクションキーバー</b>は、そのままF1〜F12に対応しています。</p><h2>まず試してほしいこと</h2><p>　<b>F5</b>で縦書きに、<b>F6</b>で原稿用紙になります。右の<b>ツールパレット</b>「教材」タブから、国語テストや理科プリントのテンプレートを一発で呼び出せます。「文書」タブでは、用紙・字数×行数・余白から字送り・行送りを自動で計算します。</p><p>　文字を選んで「ふりがな」を押すと<ruby>振<rt>ふ</rt></ruby>り<ruby>仮名<rt>がな</rt></ruby>が付きます。<span class="boten">傍点</span>や<span class="kakomi">囲み文字</span>、縦書き時の<span class="tcy">21</span>世紀のような縦中横も使えます。</p><h2>保存について</h2><p>　入力は自動でブラウザに保存されます。別の端末へ持ち出すときは「名前を付けて保存（.wbw）」でファイルにしてください。テキストやHTMLでの書き出しもできます。</p><p>　校正タブの「校正を実行」で、ら抜きや二重助詞、AIっぽい言い回しをチェックします。</p>`;
+  }
+  $('#doctitle').value = doc.title || '無題文書';
+  loadSheet(); updateStatus();
+  if (!restored) save();
+}
+init();
+})();
+</script>
+</body>
+</html>
