@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>和文ワープロ Web - 縦書き・原稿用紙・教材プリント対応</title>
-<meta name="description" content="Webブラウザだけで動く、縦書き・原稿用紙・文書スタイル・教材プリント作成対応の日本語ワープロ">
+<title>ジェネ太朗 - Webで動く縦書き・教材プリントワープロ</title>
+<meta name="description" content="Webブラウザだけで動く、縦書き・原稿用紙・文書スタイル・教材プリント作成対応の日本語ワープロ「ジェネ太朗」">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPMincho&family=BIZ+UDPGothic&family=Noto+Serif+JP:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -223,8 +223,8 @@ dialog table.help kbd{background:var(--ui-bg);border:1px solid var(--ui-line);bo
 
 <!-- ===== タイトル行 ===== -->
 <div id="titlebar">
-  <span class="logo">和</span>
-  <span>和文ワープロ Web</span>
+  <span class="logo">朗</span>
+  <span>ジェネ太朗</span>
   <span style="opacity:.6">－</span>
   <input id="doctitle" value="無題文書" aria-label="文書名" spellcheck="false">
   <span class="spacer"></span>
@@ -483,7 +483,7 @@ dialog table.help kbd{background:var(--ui-bg);border:1px solid var(--ui-line);bo
   <div class="body" id="dlg-body"></div>
   <footer id="dlg-foot"></footer>
 </dialog>
-<input type="file" id="file-input" accept=".wbw,.jtdg,.json,.txt,.html,.htm" hidden>
+<input type="file" id="file-input" accept=".gnt,.wbw,.jtdg,.json,.txt,.html,.htm" hidden>
 
 <script>
 (() => {
@@ -491,8 +491,8 @@ dialog table.help kbd{background:var(--ui-bg);border:1px solid var(--ui-line);bo
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const editor = $('#editor'), paper = $('#paper'), root = document.documentElement;
-const STORAGE_KEY = 'wabun-word:doc:v1';
-const LEGACY_STORAGE_KEY = 'ichitaro-generic:doc:v1';
+const STORAGE_KEY = 'genetaro:doc:v1';
+const LEGACY_STORAGE_KEYS = ['wabun-word:doc:v1', 'ichitaro-generic:doc:v1'];
 const MM = 96 / 25.4, PT = 96 / 72;
 const PAPER_MM = { A4: [210, 297], B5: [182, 257], A5: [148, 210], B4: [257, 364] };
 const PT_LIST = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48];
@@ -507,14 +507,14 @@ const cur = () => doc.sheets[doc.current];
 
 /* ===== メニュー定義 ===== */
 const MENUS = [
-  ['ファイル(F)', [['新規作成', 'new'], ['開く…', 'open', 'Ctrl+O'], '-', ['保存（ブラウザに）', 'save', 'Ctrl+S'], ['名前を付けて保存（.wbw）', 'saveAs', 'Ctrl+Shift+S'], '-', ['テキストで書き出し', 'exportTxt'], ['HTMLで書き出し', 'exportHtml'], '-', ['印刷…', 'print', 'Ctrl+P']]],
+  ['ファイル(F)', [['新規作成', 'new'], ['開く…', 'open', 'Ctrl+O'], '-', ['保存（ブラウザに）', 'save', 'Ctrl+S'], ['名前を付けて保存（.gnt）', 'saveAs', 'Ctrl+Shift+S'], '-', ['テキストで書き出し', 'exportTxt'], ['HTMLで書き出し', 'exportHtml'], '-', ['印刷…', 'print', 'Ctrl+P']]],
   ['編集(E)', [['元に戻す', 'undo', 'Ctrl+Z'], ['やり直し', 'redo', 'Ctrl+Y'], '-', ['すべて選択', 'selectAll', 'Ctrl+A'], '-', ['検索…', 'find', 'F3'], ['置換…', 'replace', 'F4']]],
   ['表示(V)', [['横書き／縦書き 切替', 'toggleVertical', 'F5'], ['原稿用紙', 'toggleGenkou', 'F6'], ['ドラフト編集／イメージ編集', 'toggleDraft'], '-', ['ツールパレット', 'togglePalette'], ['ファンクションキーバー', 'toggleFkeys'], '-', ['ズームイン', 'zoomIn', 'Ctrl++'], ['ズームアウト', 'zoomOut', 'Ctrl+-'], ['100%', 'zoomReset', 'Ctrl+0'], '-', ['配色：明／暗 切替', 'toggleTheme']]],
   ['挿入(I)', [['改ページ', 'pagebreak', 'Ctrl+Enter'], ['日付', 'date'], ['区切り線', 'hr'], ['リンク…', 'link'], '-', ['ふりがな…', 'ruby', 'F7'], ['記号…', 'symbols']]],
   ['書式(O)', [['太字', 'bold', 'Ctrl+B'], ['斜体', 'italic', 'Ctrl+I'], ['下線', 'underline', 'Ctrl+U'], ['取消線', 'strike'], '-', ['傍点', 'boten'], ['縦中横', 'tcy'], ['囲み文字', 'kakomi'], ['マーカー', 'marker'], '-', ['書式解除', 'clear'], '-', ['文書スタイル…', 'docStyle', 'F9']]],
   ['罫線(K)', [['表を作成…', 'table', 'F8'], ['行を追加', 'tblRow'], ['列を追加', 'tblCol'], ['行を削除', 'tblDelRow'], ['列を削除', 'tblDelCol'], ['表を削除', 'tblDel']]],
   ['ツール(T)', [['文字数カウント', 'countDialog', 'F2'], ['文書校正', 'kousei', 'F10'], ['ジャンプパレット', 'jump', 'F11'], '-', ['シートを追加', 'sheetAdd'], ['シート名を変更…', 'sheetRename'], ['シートを削除', 'sheetDelete'], '-', ['ブラウザ保存データを消去', 'clearStorage']]],
-  ['ヘルプ(H)', [['操作ガイド', 'help', 'F1'], ['和文ワープロ Web について', 'about']]],
+  ['ヘルプ(H)', [['操作ガイド', 'help', 'F1'], ['ジェネ太朗について', 'about']]],
 ];
 const FKEYS = [['F1', 'ヘルプ', 'help'], ['F2', '文字数', 'countDialog'], ['F3', '検索', 'find'], ['F4', '置換', 'replace'], ['F5', '縦横切替', 'toggleVertical'], ['F6', '原稿用紙', 'toggleGenkou'], ['F7', 'ふりがな', 'ruby'], ['F8', '表作成', 'table'], ['F9', '文書スタイル', 'docStyle'], ['F10', '校正', 'kousei'], ['F11', 'ジャンプ', 'jump'], ['F12', '全画面', 'fullscreen']];
 
@@ -632,7 +632,8 @@ function save() {
 }
 function restore() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
+    let raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) { for (const k of LEGACY_STORAGE_KEYS) { raw = localStorage.getItem(k); if (raw) break; } }
     if (!raw) return false;
     const d = JSON.parse(raw);
     if (!d || !Array.isArray(d.sheets) || !d.sheets.length) return false;
@@ -658,9 +659,9 @@ function openFile(file) {
   const r = new FileReader();
   r.onload = () => {
     const text = String(r.result);
-    if (/\.(wbw|jtdg|json)$/i.test(file.name)) {
+    if (/\.(gnt|wbw|jtdg|json)$/i.test(file.name)) {
       try { const d = JSON.parse(text); if (!d.sheets) throw 0; doc = d; doc.sheets.forEach(s => { s.style = Object.assign(defaultStyle(), s.style || {}); s.html = sanitizeHtml(s.html || ''); }); doc.current = 0; }
-      catch (e) { alert('和文ワープロ形式（.wbw）として読めませんでした。'); return; }
+      catch (e) { alert('ジェネ太朗形式（.gnt）として読めませんでした。'); return; }
     } else if (/\.html?$/i.test(file.name)) {
       const body = text.replace(/^[\s\S]*<body[^>]*>/i, '').replace(/<\/body>[\s\S]*$/i, '');
       doc = { title: file.name.replace(/\.[^.]+$/, ''), sheets: [newSheet('シート1', sanitizeHtml(body))], current: 0, zoom: 1 };
@@ -842,11 +843,11 @@ function formDialog(title, fields, onOk) {
 }
 function docStyleDialog() { showPane('bunsho'); $('#palette').classList.remove('hidden'); doc.paletteHidden = false; $('#ds-cols').focus(); }
 function helpDialog() {
-  const rows = [['Esc', 'メニューバーに移動（←→で切替、↓で開く）'], ['F1〜F12', '画面下のファンクションキーバー参照'], ['Ctrl+S', 'ブラウザに保存'], ['Ctrl+Shift+S', '.wbwファイルとして保存'], ['Ctrl+B / I / U', '太字／斜体／下線'], ['Ctrl+Enter', '改ページ'], ['Ctrl+F / H', '検索／置換'], ['Ctrl+ + / -', 'ズーム'], ['右パレット', '文字・段落・挿入・教材・文書スタイル・ジャンプ・校正'], ['シート', '画面下のタブで切替。＋で追加']];
+  const rows = [['Esc', 'メニューバーに移動（←→で切替、↓で開く）'], ['F1〜F12', '画面下のファンクションキーバー参照'], ['Ctrl+S', 'ブラウザに保存'], ['Ctrl+Shift+S', '.gntファイルとして保存'], ['Ctrl+B / I / U', '太字／斜体／下線'], ['Ctrl+Enter', '改ページ'], ['Ctrl+F / H', '検索／置換'], ['Ctrl+ + / -', 'ズーム'], ['右パレット', '文字・段落・挿入・教材・文書スタイル・ジャンプ・校正'], ['シート', '画面下のタブで切替。＋で追加']];
   showDialog('操作ガイド', `<table class="help">${rows.map(([k, v]) => `<tr><td><kbd>${k}</kbd></td><td>${v}</td></tr>`).join('')}</table><p class="hint">ブラウザ自体が予約しているキー（F11の全画面、F12の開発者ツール、Ctrl+Pなど）は、環境によってブラウザ側の動作になることがあります。その場合は画面下のバーをクリックしてください。</p>`, [['閉じる', null, true]]);
 }
 function aboutDialog() {
-  showDialog('和文ワープロ Web について', `<p><b>和文ワープロ Web</b> ver 1.1</p><p>Webブラウザだけで軽快に動く、縦書き・原稿用紙・文書スタイル・教材プリント作成対応の日本語ワープロです。日本の伝統的なワープロの作法を、Web標準技術（HTML5/CSS3/JavaScript）で再現しました。</p><p class="hint">学校現場でのテスト・プリント作成や、作文・原稿用紙での執筆、縦書き小説などの個人用途に自由にお使いいただけます。文書データはお使いのブラウザ内（localStorage）および保存したファイルにのみ保持され、外部サーバーへ送信されることはありません。</p>`, [['閉じる', null, true]]);
+  showDialog('ジェネ太朗について', `<p><b>ジェネ太朗</b> ver 1.1</p><p>Webブラウザだけで軽快に動く、縦書き・原稿用紙・文書スタイル・教材プリント作成対応の日本語ワープロです。日本の伝統的なワープロの作法を、Web標準技術（HTML5/CSS3/JavaScript）で再現しました。</p><p class="hint">学校現場でのテスト・プリント作成や、作文・原稿用紙での執筆、縦書き小説などの個人用途に自由にお使いいただけます。文書データはお使いのブラウザ内（localStorage）および保存したファイルにのみ保持され、外部サーバーへ送信されることはありません。</p>`, [['閉じる', null, true]]);
 }
 function countDialog() { const c = countStats(); showDialog('文字数カウント', `<div class="stat" style="font-size:13px">${$('#stat').innerHTML}</div><p class="hint">原稿用紙換算は「20字×20行」で段落ごとに改行して数えた枚数です。</p>`, [['閉じる', null, true]]); }
 function symbolsDialog() { showDialog('記号の挿入', `<div class="pal-row">${SYMBOLS.map(s => `<button data-sym="${s}" style="font-family:var(--font-mincho);font-size:16px;border:1px solid var(--ui-line)">${s}</button>`).join('')}</div>`, [['閉じる', null, true]]); $('#dlg-body').onclick = e => { const b = e.target.closest('[data-sym]'); if (b) { dlg.close(); insertText(b.dataset.sym); } }; }
@@ -861,7 +862,7 @@ function run(cmd) {
     new: () => { if (!confirm('新しい文書を作ります。今の内容はブラウザ保存済みのものが残りますが、続けますか？')) return; doc = { title: '無題文書', sheets: [newSheet()], current: 0, zoom: 1 }; $('#doctitle').value = doc.title; loadSheet(); markDirty(); },
     open: () => $('#file-input').click(),
     save: () => save(),
-    saveAs: () => { syncFromEditor(); doc.title = $('#doctitle').value; download(safeName() + '.wbw', JSON.stringify(doc, null, 1)); },
+    saveAs: () => { syncFromEditor(); doc.title = $('#doctitle').value; download(safeName() + '.gnt', JSON.stringify(doc, null, 1)); },
     exportTxt: () => { syncFromEditor(); download(safeName() + '.txt', doc.sheets.map(sh => (doc.sheets.length > 1 ? `■ ${sh.name}\n` : '') + toText(sh.html)).join('\n\n'), 'text/plain;charset=utf-8'); },
     exportHtml: () => { syncFromEditor(); const st = cur().style; download(safeName() + '.html', `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>${escapeHtml(doc.title)}</title><style>body{font-family:${st.font === 'gothic' ? 'sans-serif' : 'serif'};line-height:1.9;max-width:42em;margin:2em auto;padding:0 1em;${st.vertical ? 'writing-mode:vertical-rl;max-width:none;height:90vh;' : ''}}p{margin:0}.boten{text-emphasis:filled sesame}.tcy{text-combine-upright:all}.kakomi{border:1px solid;padding:0 .1em}.marker{background:#fff59a}table{border-collapse:collapse}td,th{border:1px solid #333;padding:.2em .5em}hr.pagebreak{break-before:page;border:0}</style></head><body>${doc.sheets.map(sh => sh.html).join('<hr class="pagebreak">')}</body></html>`, 'text/html;charset=utf-8'); },
     print: () => { syncFromEditor(); window.print(); },
@@ -995,7 +996,7 @@ function init() {
   const restored = restore();
   if (matchMedia('(max-width:760px)').matches) { doc.paletteHidden = true; if (!restored) doc.zoom = 'fit'; }
   if (!restored) {
-    cur().html = `<h1>和文ワープロ Webへようこそ</h1><p>　これは、Webブラウザだけで軽快に動く日本語ワープロです。縦書き、原稿用紙、字数×行数指定、教材・テスト作成に対応しています。</p><p>　<b>Esc</b>キーを押すとメニューバーに移ります。画面下の<b>ファンクションキーバー</b>は、そのままF1〜F12に対応しています。</p><h2>まず試してほしいこと</h2><p>　<b>F5</b>で縦書きに、<b>F6</b>で原稿用紙になります。右の<b>ツールパレット</b>「教材」タブから、国語テストや理科プリントのテンプレートを一発で呼び出せます。「文書」タブでは、用紙・字数×行数・余白から字送り・行送りを自動で計算します。</p><p>　文字を選んで「ふりがな」を押すと<ruby>振<rt>ふ</rt></ruby>り<ruby>仮名<rt>がな</rt></ruby>が付きます。<span class="boten">傍点</span>や<span class="kakomi">囲み文字</span>、縦書き時の<span class="tcy">21</span>世紀のような縦中横も使えます。</p><h2>保存について</h2><p>　入力は自動でブラウザに保存されます。別の端末へ持ち出すときは「名前を付けて保存（.wbw）」でファイルにしてください。テキストやHTMLでの書き出しもできます。</p><p>　校正タブの「校正を実行」で、ら抜きや二重助詞、AIっぽい言い回しをチェックします。</p>`;
+    cur().html = `<h1>ジェネ太朗へようこそ</h1><p>　これは、Webブラウザだけで軽快に動く日本語ワープロ「ジェネ太朗」です。縦書き、原稿用紙、字数×行数指定、教材・テスト作成に対応しています。</p><p>　<b>Esc</b>キーを押すとメニューバーに移ります。画面下の<b>ファンクションキーバー</b>は、そのままF1〜F12に対応しています。</p><h2>まず試してほしいこと</h2><p>　<b>F5</b>で縦書きに、<b>F6</b>で原稿用紙になります。右の<b>ツールパレット</b>「教材」タブから、国語テストや理科プリントのテンプレートを一発で呼び出せます。「文書」タブでは、用紙・字数×行数・余白から字送り・行送りを自動で計算します。</p><p>　文字を選んで「ふりがな」を押すと<ruby>振<rt>ふ</rt></ruby>り<ruby>仮名<rt>がな</rt></ruby>が付きます。<span class="boten">傍点</span>や<span class="kakomi">囲み文字</span>、縦書き時の<span class="tcy">21</span>世紀のような縦中横も使えます。</p><h2>保存について</h2><p>　入力は自動でブラウザに保存されます。別の端末へ持ち出すときは「名前を付けて保存（.gnt）」でファイルにしてください。テキストやHTMLでの書き出しもできます。</p><p>　校正タブの「校正を実行」で、ら抜きや二重助詞、AIっぽい言い回しをチェックします。</p>`;
   }
   $('#doctitle').value = doc.title || '無題文書';
   loadSheet(); updateStatus();
